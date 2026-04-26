@@ -359,7 +359,7 @@ function update(){
     } else { enemyTimer--; }
     
     if(frameCount%200===0)spawnCloud();
-    if(frameCount%240===0){let change=(Math.random()*2-1)*1.5;speed+=change;if(speed<4)speed=4;if(speed>15)speed=15;}
+    if(frameCount%240===0){let change=(Math.random()*2-1)*1.5;speed+=change;if(speed<4)speed=4;if(speed>11)speed=11;} // Capped from 15 to 11
     
     // Environment Movement
     obstacles.forEach(o=>o.x-=speed); obstacles=obstacles.filter(o=>o.x+o.w>0);
@@ -454,7 +454,7 @@ function update(){
     });
     
     score++;
-    if(score%150===0) { speed+=0.5; if(speed>15)speed=15; }
+    if(score%150===0) { speed+=0.5; if(speed>11)speed=11; } // Capped from 15 to 11
 }
 
 function jump(){
