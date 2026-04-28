@@ -393,7 +393,7 @@ function drawObstacles(){
 }
 
 function spawnObstacle(){
-    // Hand-crafted Playable Scenarios (Now properly ordered AFTER dogs)
+    // Hand-crafted Playable Scenarios (Platforms and Lasers)
     if (score > 4500 && Math.random() > 0.75) {
         let startX = 850;
         let choice = Math.random();
@@ -412,7 +412,6 @@ function spawnObstacle(){
         } 
         else {
             // 2. Thread the Needle: Mid-air gap 
-            // Gap widened significantly to make the jump arc safer
             electricWalls.push({x: startX + 150, y1: 0, y2: 80, w: 6, laserType: 'CEILING', closeCallTriggered: false});
             electricWalls.push({x: startX + 150, y1: 230, y2: 332, w: 6, laserType: 'FLOOR', closeCallTriggered: false});
             
@@ -425,13 +424,44 @@ function spawnObstacle(){
         }
     }
 
-    // Standard Spikes
-    let h=30+Math.random()*25;
-    lastObstacleCount = 1;
-    if (score > 800 && Math.random() > 0.6) lastObstacleCount = 2;
-    if (score > 2000 && Math.random() > 0.8) lastObstacleCount = 3;
-    for(let i=0; i<lastObstacleCount; i++) {
-        obstacles.push({x:800 + i*48,y:332,w:48,h:h, closeCallTriggered: false});
+    // Standard Spikes - Hand-Crafted Playable Jump Arcs
+    let startX = 800;
+    let choice = Math.random();
+    
+    if (score > 2500 && choice < 0.15) {
+        // Ascending Stairs (Requires early jump)
+        obstacles.push({x: startX, y: 332, w: 48, h: 40, closeCallTriggered: false});
+        obstacles.push({x: startX + 48, y: 332, w: 48, h: 75, closeCallTriggered: false});
+        obstacles.push({x: startX + 96, y: 332, w: 48, h: 110, closeCallTriggered: false});
+        lastObstacleCount = 3;
+    } 
+    else if (score > 2500 && choice < 0.30) {
+        // Descending Stairs (Taps into the back-half of the jump arc)
+        obstacles.push({x: startX, y: 332, w: 48, h: 110, closeCallTriggered: false});
+        obstacles.push({x: startX + 48, y: 332, w: 48, h: 75, closeCallTriggered: false});
+        obstacles.push({x: startX + 96, y: 332, w: 48, h: 40, closeCallTriggered: false});
+        lastObstacleCount = 3;
+    }
+    else if (score > 1500 && choice < 0.50) {
+        // The Wall (Single massive spike)
+        let h = 90 + Math.random() * 30; // 90 to 120px
+        obstacles.push({x: startX, y: 332, w: 48, h: h, closeCallTriggered: false});
+        lastObstacleCount = 1;
+    }
+    else if (score > 1000 && choice < 0.70) {
+        // Twin Peaks
+        let h = 50 + Math.random() * 30; // 50 to 80px
+        obstacles.push({x: startX, y: 332, w: 48, h: h, closeCallTriggered: false});
+        obstacles.push({x: startX + 48, y: 332, w: 48, h: h, closeCallTriggered: false});
+        lastObstacleCount = 2;
+    }
+    else {
+        // Standard Singles and Doubles
+        let h = 30 + Math.random() * 30; // 30 to 60px
+        lastObstacleCount = Math.random() > 0.8 ? 2 : 1;
+        for(let i=0; i<lastObstacleCount; i++) {
+            obstacles.push({x: startX + i*48, y: 332, w: 48, h: h, closeCallTriggered: false});
+        }
     }
 }
 
