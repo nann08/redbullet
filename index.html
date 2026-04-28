@@ -194,7 +194,7 @@ function drawClouds(){
     let r = Math.floor(128 + t * (190 - 128)); 
     let g = Math.floor(128 + t * (140 - 128));
     let b = Math.floor(128 + t * (160 - 128));
-    ctx.fillStyle=`rgb(${r},${g},${b})`;
+    ctx.fillStyle=`rgba(${r},${g},${b},0.5)`; // Added slight transparency for depth
     clouds.forEach(c=>ctx.fillRect(c.x,c.y,c.size,c.size/2));
 }
 
@@ -380,9 +380,9 @@ function drawText(){ctx.fillStyle='white';ctx.font='16px monospace';ctx.fillText
 
 function drawObstacles(){
     let t = getColorTransition();
-    let mainCol = `rgb(${128-t*100},${128-t*100},${128-t*100})`; 
-    let dotCol = `rgb(${169-t*140},${169-t*140},${169-t*140})`;
-    let outlineCol = t > 0.3 ? 'rgba(255,255,255,0.8)' : 'rgba(0,0,0,0)'; 
+    let mainCol = `rgb(${Math.max(0, 128-t*100)},${Math.max(0, 128-t*100)},${Math.max(0, 128-t*100)})`; 
+    let dotCol = `rgb(${Math.max(0, 169-t*140)},${Math.max(0, 169-t*140)},${Math.max(0, 169-t*140)})`;
+    let outlineCol = t > 0.3 ? 'rgba(255,255,255,0.8)' : 'rgba(100,100,100,0.5)'; 
     obstacles.forEach(o=>{
         ctx.fillStyle=mainCol;
         ctx.beginPath();ctx.moveTo(o.x,o.y);ctx.lineTo(o.x+o.w/2,o.y-o.h);ctx.lineTo(o.x+o.w,o.y);ctx.closePath();ctx.fill();
@@ -393,28 +393,48 @@ function drawObstacles(){
 }
 
 function spawnObstacle(){
-    if (score > 3000 && Math.random() > 0.8) {
-        let startX = 800;
-        platforms.push({x: startX, y: 240, w: 120, h: 14});
-        platforms.push({x: startX + 220, y: 150, w: 140, h: 14});
-        platforms.push({x: startX + 440, y: 220, w: 120, h: 14});
-        
-        electricWalls.push({x: startX + 110, y1: 50, y2: 332, w: 6, laserType: 'GATE', closeCallTriggered: false});
-        electricWalls.push({x: startX + 330, y1: 0, y2: 200, w: 6, laserType: 'CEILING', closeCallTriggered: false});
-        electricWalls.push({x: startX + 550, y1: 220, y2: 332, w: 6, laserType: 'FLOOR', closeCallTriggered: false});
-        
-        lastObstacleCount = 3;
-        obstacleTimer = 280; 
-        return;
+    // Hand-crafted Playable Scenarios (Now properly ordered AFTER dogs)
+    if (score > 4500 && Math.random() > 0.75) {
+        let startX = 850;
+        let choice = Math.random();
+
+        if (choice < 0.5) {
+            // 1. The Stairs: Platforms over floor lasers
+            platforms.push({x: startX, y: 240, w: 100, h: 14});
+            electricWalls.push({x: startX + 130, y1: 270, y2: 332, w: 6, laserType: 'FLOOR', closeCallTriggered: false});
+            platforms.push({x: startX + 180, y: 170, w: 100, h: 14});
+            electricWalls.push({x: startX + 310, y1: 220, y2: 332, w: 6, laserType: 'FLOOR', closeCallTriggered: false});
+            platforms.push({x: startX + 360, y: 240, w: 100, h: 14});
+            
+            obstacleTimer = 260; 
+            lastObstacleCount = 3;
+            return;
+        } 
+        else {
+            // 2. Thread the Needle: Mid-air gap 
+            // Gap widened significantly to make the jump arc safer
+            electricWalls.push({x: startX + 150, y1: 0, y2: 80, w: 6, laserType: 'CEILING', closeCallTriggered: false});
+            electricWalls.push({x: startX + 150, y1: 230, y2: 332, w: 6, laserType: 'FLOOR', closeCallTriggered: false});
+            
+            // Follow up spike
+            obstacles.push({x: startX + 400, y: 332, w: 40, h: 30, closeCallTriggered: false});
+            
+            obstacleTimer = 220; 
+            lastObstacleCount = 3;
+            return;
+        }
     }
-    let h=40+Math.random()*20;
+
+    // Standard Spikes
+    let h=30+Math.random()*25;
     lastObstacleCount = 1;
-    if (score > 1000 && Math.random() > 0.7) lastObstacleCount = 2;
-    if (score > 2500 && Math.random() > 0.8) lastObstacleCount = 3;
+    if (score > 800 && Math.random() > 0.6) lastObstacleCount = 2;
+    if (score > 2000 && Math.random() > 0.8) lastObstacleCount = 3;
     for(let i=0; i<lastObstacleCount; i++) {
         obstacles.push({x:800 + i*48,y:332,w:48,h:h, closeCallTriggered: false});
     }
 }
+
 function spawnCloud(){clouds.push({x:800,y:Math.random()*100+50,size:16+Math.random()*8});}
 
 function spawnEnemy(){
@@ -526,7 +546,6 @@ function update(){
     obstacles.forEach(o=>{ let hitX = o.x + o.w * 0.25; let hitW = o.w * 0.5; let hitY = o.y - o.h * 0.7; if(player.x < hitX + hitW && player.x + player.w > hitX && player.y + player.h > hitY) crashGame(12); else if (!o.closeCallTriggered && player.x + player.w > hitX - 15 && player.x < hitX + hitW + 15) { if (player.y + player.h <= hitY && player.y + player.h > hitY - 20) { o.closeCallTriggered = true; floatingTexts.push({x: hitX + hitW/2, y: hitY - 10, text: "*close call*", life: 40}); } } });
     electricWalls.forEach(w=>{ 
         const beamX = w.x + w.w/2;
-        // Accurate Laser Hitbox (Narrowed to 3px)
         if(player.x < beamX + 3 && player.x + player.w > beamX - 3 && player.y + player.h > w.y1 && player.y < w.y2) crashGame(16); 
         else if (!w.closeCallTriggered && player.x + player.w > beamX - 15 && player.x < beamX + 15) { if ((player.y + player.h <= w.y1 && player.y + player.h > w.y1 - 15) || (player.y >= w.y2 && player.y < w.y2 + 15)) { w.closeCallTriggered = true; floatingTexts.push({x: beamX, y: (w.laserType === 'CEILING' ? w.y2 + 10 : w.y1 - 10), text: "*close call*", life: 40}); } } 
     });
@@ -554,11 +573,33 @@ function loop(){
     frameCount++;
     ctx.save();
     applyShake();
-    drawStars();drawGround();drawDistanceMarkers();drawClouds();drawPlayer();
-    drawPlatforms();drawElectricWalls();drawObstacles();
-    drawEnemies();drawBullets();drawEnemyBullets();
-    drawCasings();drawGrass();drawSparks();drawMuzzleFlashes();drawDust();
-    drawFloatingTexts();drawText();
+    
+    // Background Layer
+    drawStars();
+    drawClouds(); 
+    drawDistanceMarkers();
+    
+    // Environment Layer
+    drawGround();
+    drawPlatforms();
+    drawElectricWalls();
+    drawObstacles();
+    
+    // Entity Layer
+    drawEnemies();
+    drawEnemyBullets();
+    drawBullets();
+    drawPlayer(); // Drawn in front of platforms
+    
+    // FX/UI Layer
+    drawCasings();
+    drawGrass();
+    drawSparks();
+    drawMuzzleFlashes();
+    drawDust();
+    drawFloatingTexts();
+    drawText();
+    
     ctx.restore();
     if(!started&&!gameOver)player.frame++;
     update();
