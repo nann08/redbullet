@@ -121,6 +121,9 @@ let readyToStart = true;
 let currentTransition = 0, targetTransition = 0, transitionTimer = 0;
 let obstacleTimer = 0, enemyTimer = 40, lastObstacleCount = 1;
 
+// --- GAMEPAD LOGIC TRACKING ---
+let lastGamepadButtons = [];
+
 const STAR_COUNT=80;
 const PLANET_COUNT=3;
 for(let i=0;i<STAR_COUNT;i++)stars.push({x:Math.random()*800,y:Math.random()*380,size:1+Math.random()*2,speed:0.2+Math.random()*0.3});
@@ -132,26 +135,19 @@ function getColorTransition() { return currentTransition; }
 
 function drawStars(){
     let t = getColorTransition();
-    
-    // Background: #111 to a softer gray (restored light vibes)
     let bg = Math.floor(17 + t * (180 - 17)); 
     ctx.fillStyle = `rgb(${bg},${bg},${bg})`;
     ctx.fillRect(0,0,800,400);
-    
-    // Stars: White to Black
     let starC = Math.floor(255 - t * 255); 
     stars.forEach(s=>{
         ctx.fillStyle=`rgba(${starC},${starC},${starC},0.9)`;
         ctx.fillRect(s.x,s.y,s.size,s.size);
     });
-    
-    // Planets (Blue cloud things): Restored to Pink
     planets.forEach(p=>{
         let currentHue = p.hue + t * (330 - p.hue); 
-        let currentL = 45 + t * 30; // Brighten slightly when pink
+        let currentL = 45 + t * 30; 
         ctx.fillStyle=`hsl(${currentHue} 70% ${currentL}%)`;
         ctx.beginPath(); ctx.ellipse(p.x,p.y,p.size,p.size*0.6,0,0,Math.PI*2); ctx.fill();
-        
         ctx.fillStyle=`rgba(${starC},${starC},${starC},0.06)`;
         ctx.beginPath(); ctx.ellipse(p.x-6,p.y-6,p.size*0.5,p.size*0.3,0,0,Math.PI*2); ctx.fill();
     });
@@ -161,7 +157,6 @@ function drawGround(){ctx.fillStyle='green';ctx.fillRect(0,332,800,16);}
 
 function drawClouds(){
     let t = getColorTransition();
-    // Regular clouds: Gray to a muted pinkish hue (restored)
     let r = Math.floor(128 + t * (190 - 128)); 
     let g = Math.floor(128 + t * (140 - 128));
     let b = Math.floor(128 + t * (160 - 128));
@@ -174,17 +169,13 @@ function drawPlayer(){
     let bodyGray = Math.floor(255 - t * 200); 
     let bodyColor = `rgb(${bodyGray},${bodyGray},${bodyGray})`;
     let recoilOffset=player.recoil>0?-2:0;
-    
     ctx.fillStyle=bodyColor; ctx.fillRect(player.x+recoilOffset,player.y-16,player.w,32);
     ctx.fillStyle='black'; ctx.fillRect(player.x+2+recoilOffset,player.y-12,12,4);
-    
     ctx.fillStyle=bodyColor;
     let legSwing=Math.sin(player.frame*0.3)*2;
     ctx.fillRect(player.x-2+recoilOffset,player.y+16+legSwing,4,8);
     ctx.fillRect(player.x+14+recoilOffset,player.y+16-legSwing,4,8);
-    
     ctx.fillStyle='blue'; ctx.fillRect(player.x-4+recoilOffset,player.y-10,4,2);
-    
     if(player.swinging){
         ctx.strokeStyle='silver';ctx.lineWidth=4;let swingLength=40;let angle=Math.PI/4-(player.swingFrame/5)*(Math.PI/2);let sx=player.x+player.w/2,sy=player.y;
         ctx.beginPath();ctx.moveTo(sx,sy);ctx.lineTo(sx+swingLength*Math.cos(angle),sy-swingLength*Math.sin(angle));ctx.stroke();
@@ -201,18 +192,18 @@ function drawEnemies(){
         }else{
             if (e.type === 'dog') {
                 e.frame++;
-                ctx.fillStyle='#aab8c2'; ctx.fillRect(e.x, e.y, e.w, e.h); // Lighter silver body
-                ctx.strokeStyle='#00ffff'; ctx.lineWidth=2; ctx.strokeRect(e.x, e.y, e.w, e.h); // Cyan glowing outline
-                ctx.fillStyle='#00ffff'; ctx.fillRect(e.x+4, e.y+4, 4, 4);  // Cyan eye (doesn't look like bullet)
+                ctx.fillStyle='#aab8c2'; ctx.fillRect(e.x, e.y, e.w, e.h); 
+                ctx.strokeStyle='#00ffff'; ctx.lineWidth=2; ctx.strokeRect(e.x, e.y, e.w, e.h); 
+                ctx.fillStyle='#00ffff'; ctx.fillRect(e.x+4, e.y+4, 4, 4);  
                 let legOffset = Math.sin(e.frame * 0.5) * 4;
                 ctx.fillStyle='#555'; 
                 ctx.fillRect(e.x+4+legOffset, e.y+16, 4, 6);
                 ctx.fillRect(e.x+20-legOffset, e.y+16, 4, 6);
             } else if (e.type === 'rival') {
                 e.frame++;
-                ctx.fillStyle='#ff0033'; ctx.fillRect(e.x, e.y, e.w, 32); // Red body
-                ctx.fillStyle='gold'; ctx.fillRect(e.x-2, e.y+4, 12, 4); // Gold Visor
-                ctx.fillStyle='black'; ctx.fillRect(e.x+12, e.y+6, 8, 4); // Black Scarf
+                ctx.fillStyle='#ff0033'; ctx.fillRect(e.x, e.y, e.w, 32); 
+                ctx.fillStyle='gold'; ctx.fillRect(e.x-2, e.y+4, 12, 4); 
+                ctx.fillStyle='black'; ctx.fillRect(e.x+12, e.y+6, 8, 4); 
                 let legSwing = Math.sin(e.frame * 0.3) * 2;
                 ctx.fillStyle='#ff0033';
                 ctx.fillRect(e.x+2, e.y+32+legSwing, 4, 8);
@@ -236,7 +227,7 @@ function drawEnemyBullets() {
 function drawPlatforms() {
     platforms.forEach(p => {
         ctx.fillStyle = '#111'; ctx.fillRect(p.x, p.y, p.w, p.h);
-        ctx.fillStyle = '#0ff'; ctx.fillRect(p.x, p.y, p.w, 2); // Neon Cyan Edge
+        ctx.fillStyle = '#0ff'; ctx.fillRect(p.x, p.y, p.w, 2); 
     });
 }
 
@@ -259,10 +250,9 @@ function drawText(){ctx.fillStyle='white';ctx.font='16px monospace';ctx.fillText
 
 function drawObstacles(){
     let t = getColorTransition();
-    let mainCol = `rgb(${128-t*100},${128-t*100},${128-t*100})`; // Turns dark against pink sky
+    let mainCol = `rgb(${128-t*100},${128-t*100},${128-t*100})`; 
     let dotCol = `rgb(${169-t*140},${169-t*140},${169-t*140})`;
-    let outlineCol = t > 0.3 ? 'rgba(255,255,255,0.8)' : 'rgba(0,0,0,0)'; // White outline pops when bright
-    
+    let outlineCol = t > 0.3 ? 'rgba(255,255,255,0.8)' : 'rgba(0,0,0,0)'; 
     obstacles.forEach(o=>{
         ctx.fillStyle=mainCol;
         ctx.beginPath();ctx.moveTo(o.x,o.y);ctx.lineTo(o.x+o.w/2,o.y-o.h);ctx.lineTo(o.x+o.w,o.y);ctx.closePath();ctx.fill();
@@ -273,18 +263,15 @@ function drawObstacles(){
 }
 
 function spawnObstacle(){
-    // Spawn Massive Electric Walls after 4500 points
     if (score > 4500 && Math.random() > 0.85) {
         let wallH = 150;
         electricWalls.push({x: 800 + 150, y: 332 - wallH, w: 40, h: wallH});
-        // Generate jumping platforms to clear it
         platforms.push({x: 800, y: 250, w: 60, h: 10});
         platforms.push({x: 800 + 110, y: 150, w: 60, h: 10});
         platforms.push({x: 800 + 220, y: 150, w: 60, h: 10});
         lastObstacleCount = 3;
         return;
     }
-    
     let h=40+Math.random()*20;
     lastObstacleCount = 1;
     if (score > 1000 && Math.random() > 0.7) lastObstacleCount = 2;
@@ -299,7 +286,6 @@ function spawnEnemy(){
     let type = 'orb';
     if (score > 6000 && Math.random() > 0.6) type = 'rival';
     else if (score > 3500 && Math.random() > 0.5) type = 'dog';
-
     if (type === 'dog') {
         enemies.push({type: 'dog', x: 800, y: 316, w: 32, h: 16, vx: speed * 1.3, vy: 0, exploding: 0, remove: false, frame: 0});
     } else if (type === 'rival') {
@@ -313,10 +299,58 @@ function spawnEnemy(){
 function spawnSparks(x,y){for(let i=0;i<10;i++){sparks.push({x:x,y:y,vx:(Math.random()-0.5)*4,vy:(Math.random()-0.5)*4,life:7});}}
 function spawnMuzzleFlash(){let flashWidth=4+Math.random()*4;muzzleFlashes.push({x:player.x+player.w,y:player.y+player.h/2-15,w:flashWidth,h:4,life:2});}
 
+// --- NEW GAMEPAD POLLING FUNCTION ---
+function pollGamepad() {
+    const gamepads = navigator.getGamepads();
+    // Try to find a connected controller (check index 0 or 1)
+    const gp = gamepads[0] || gamepads[1];
+
+    if (gp) {
+        // Standard Mapping for Horizontal Joy-Con:
+        // Button 1: Right face button (A)
+        // Button 0: Bottom face button (B)
+        // Button 4/5: Shoulders (SL/SR)
+        // Axes 0/1: Joystick
+
+        // 1. JUMP / START / RESTART (Right face button)
+        if (gp.buttons[1].pressed && !lastGamepadButtons[1]) {
+            initAudio();
+            if (gameOver) { resetGame(); } 
+            else if (!started) { if (readyToStart) { started=true; readyToStart=false; AudioSys.startMusic(); } } 
+            else { jump(); }
+        }
+        if (!gp.buttons[1].pressed) {
+            if (!started && !gameOver) readyToStart = true;
+        }
+
+        // 2. SHOOT (Shoulder Buttons)
+        if ((gp.buttons[4].pressed || gp.buttons[5].pressed) && 
+            (!lastGamepadButtons[4] && !lastGamepadButtons[5])) {
+            shoot();
+        }
+
+        // 3. SWING (Any stick movement)
+        const deadzone = 0.5;
+        if (Math.abs(gp.axes[0]) > deadzone || Math.abs(gp.axes[1]) > deadzone) {
+            swing();
+        }
+
+        // 4. FAST FALL (Bottom face button)
+        if (gp.buttons[0].pressed) {
+            keysDown['KeyS'] = true;
+        } else {
+            keysDown['KeyS'] = false;
+        }
+
+        // Record states for "new press" logic
+        gp.buttons.forEach((btn, i) => lastGamepadButtons[i] = btn.pressed);
+    }
+}
+
 function update(){
+    pollGamepad(); // Added Joy-Con check here
     if(gameOver||!started)return;
     
-    // Background Color Transitions
     if(score >= 2000) {
         if(transitionTimer <= 0) {
             if(targetTransition === 1) { targetTransition = 0; transitionTimer = 300 + Math.random() * 600; } 
@@ -331,7 +365,6 @@ function update(){
     let wasAir=player.jumping;
     player.y+=player.vy;
     
-    // Platform Physics
     let onPlatform = false;
     platforms.forEach(p => {
         if (player.vy >= 0 && player.x + player.w > p.x && player.x < p.x + p.w &&
@@ -344,10 +377,9 @@ function update(){
         player.y=300;player.vy=0;player.jumping=false;
         if(wasAir){ for(let i=0;i<6;i++)dusts.push({x:player.x+6+Math.random()*8,y:player.y+18,vx:(Math.random()-0.5)*2,vy:-Math.random()*2,life:12}); }
     } else if (!onPlatform && player.y < 300) {
-        player.jumping = true; // Makes player fall if walking off a platform
+        player.jumping = true; 
     }
     
-    // Dynamic Spawners
     if(obstacleTimer <= 0) {
         spawnObstacle();
         obstacleTimer = Math.max(35, 85 - speed * 3) + (lastObstacleCount - 1) * 15; 
@@ -359,9 +391,8 @@ function update(){
     } else { enemyTimer--; }
     
     if(frameCount%200===0)spawnCloud();
-    if(frameCount%240===0){let change=(Math.random()*2-1)*1.5;speed+=change;if(speed<4)speed=4;if(speed>11)speed=11;} // Capped from 15 to 11
+    if(frameCount%240===0){let change=(Math.random()*2-1)*1.5;speed+=change;if(speed<4)speed=4;if(speed>11)speed=11;}
     
-    // Environment Movement
     obstacles.forEach(o=>o.x-=speed); obstacles=obstacles.filter(o=>o.x+o.w>0);
     platforms.forEach(p=>p.x-=speed); platforms=platforms.filter(p=>p.x+p.w>0);
     electricWalls.forEach(w=>w.x-=speed); electricWalls=electricWalls.filter(w=>w.x+w.w>0);
@@ -369,7 +400,6 @@ function update(){
     stars.forEach(s=>{s.x-=s.speed;if(s.x<0)s.x=800;});
     planets.forEach(p=>{p.x-=p.speed;if(p.x<-p.size)p.x=800+Math.random()*200;});
     
-    // Enemy Movement & Logic
     enemies.forEach(e=>{
         if(!e.exploding){
             e.x-=e.vx;
@@ -384,24 +414,19 @@ function update(){
         }
     });
     enemies=enemies.filter(e=>!e.remove&&e.x>-50);
-    
     enemyBullets.forEach(b => b.x -= b.vx);
     enemyBullets = enemyBullets.filter(b => b.x > 0 && !b.remove);
     
-    // Bullet Collisions
     bullets.forEach((b,i)=>{
         b.x+=12;
         sparks.push({x:b.x-2,y:b.y,vx:(Math.random()-0.5)*0.5,vy:(Math.random()-0.5)*0.5,life:5});
-        
-        // Red Bullets Clash with Purple Bullets
         enemyBullets.forEach(eb => {
             if (!b.remove && !eb.remove && Math.abs(b.x - eb.x) < 16 && Math.abs(b.y - eb.y) < 16) {
                 b.remove = true; eb.remove = true; spawnSparks(b.x, b.y); AudioSys.explode();
             }
         });
-
         enemies.forEach(e=>{
-            if(!e.exploding && !b.remove && e.type !== 'dog') { // Dogs are immune to bullets
+            if(!e.exploding && !b.remove && e.type !== 'dog') { 
                 let eHitX = e.x; let eHitY = e.y; let eW = e.w; let eH = e.type==='orb'?28:32;
                 if(b.x > eHitX && b.x < eHitX + eW && b.y > eHitY && b.y < eHitY + eH) {
                     e.exploding=7; AudioSys.explode(); spawnSparks(eHitX+eW/2, eHitY+eH/2);
@@ -412,7 +437,6 @@ function update(){
     });
     bullets=bullets.filter(b=>!b.remove&&b.x<820);
     
-    // Sword Collisions (Kills everything, including the Dog)
     if(player.swinging){
         let swingLength=40;let angle=Math.PI/4-(player.swingFrame/5)*(Math.PI/2);let sx=player.x+player.w/2,sy=player.y;
         enemies.forEach(e=>{
@@ -431,17 +455,12 @@ function update(){
     dusts.forEach((d,i)=>{d.x+=d.vx;d.y+=d.vy;d.vy+=0.2;d.life--;if(d.life<=0)dusts.splice(i,1);});
     if(shootCooldown>0)shootCooldown--;
     
-    // Player Deaths
     const crashGame = (shakeAmt) => {
         gameOver=true; AudioSys.crash(); AudioSys.stopMusic();
         if(score>highScore)highScore=score; shake=shakeAmt;
     };
-
     obstacles.forEach(o=>{ 
-        // Shrunk Hitbox: Takes away 25% empty space from the left/right corners, and cuts off the very tip
-        let hitX = o.x + o.w * 0.25; 
-        let hitW = o.w * 0.5;
-        let hitY = o.y - o.h * 0.7; 
+        let hitX = o.x + o.w * 0.25; let hitW = o.w * 0.5; let hitY = o.y - o.h * 0.7; 
         if(player.x < hitX + hitW && player.x + player.w > hitX && player.y + player.h > hitY) crashGame(12); 
     });
     electricWalls.forEach(w=>{ if(player.x<w.x+w.w&&player.x+player.w>w.x&&player.y+player.h>w.y) crashGame(16); });
@@ -452,9 +471,8 @@ function update(){
             if(player.x<e.x+e.w&&player.x+player.w>e.x&&player.y+player.h>e.y&&player.y<e.y+eH) crashGame(14);
         }
     });
-    
     score++;
-    if(score%150===0) { speed+=0.5; if(speed>11)speed=11; } // Capped from 15 to 11
+    if(score%150===0) { speed+=0.5; if(speed>11)speed=11; }
 }
 
 function jump(){
