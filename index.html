@@ -137,7 +137,9 @@ let readyToStart = true;
 let currentTransition = 0, targetTransition = 0, transitionTimer = 0;
 let obstacleTimer = 0, enemyTimer = 40, lastObstacleCount = 1;
 
+// --- INPUT TRACKING ---
 let lastGamepadButtons = [];
+let lastGamepadStickActive = false; // Prevents swing spam
 
 const STAR_COUNT=80;
 const PLANET_COUNT=3;
@@ -194,7 +196,7 @@ function drawClouds(){
     let r = Math.floor(128 + t * (190 - 128)); 
     let g = Math.floor(128 + t * (140 - 128));
     let b = Math.floor(128 + t * (160 - 128));
-    ctx.fillStyle=`rgba(${r},${g},${b},0.5)`; // Added slight transparency for depth
+    ctx.fillStyle=`rgb(${r},${g},${b})`;
     clouds.forEach(c=>ctx.fillRect(c.x,c.y,c.size,c.size/2));
 }
 
@@ -315,17 +317,14 @@ function drawElectricWalls() {
         const beamX = w.x + w.w/2;
         const beamY1 = w.y1;
         const beamY2 = w.y2;
-
         const drawNode = (nx, ny, isTop) => {
             ctx.fillStyle = '#1a1a1a';
             ctx.fillRect(nx - 10, ny - (isTop?0:10), 20, 10);
             ctx.fillStyle = '#ff0000';
             ctx.fillRect(nx - 4, ny - (isTop?-8:2), 8, 2); 
         };
-
         if (w.laserType !== 'FLOOR') drawNode(beamX, beamY1, true);
         if (w.laserType !== 'CEILING') drawNode(beamX, beamY2, false);
-
         let flicker = 0.8 + Math.random() * 0.2;
         ctx.shadowBlur = 8;
         ctx.shadowColor = "#ff0033";
@@ -333,7 +332,6 @@ function drawElectricWalls() {
         ctx.fillRect(beamX - 1, beamY1 + (w.laserType==='FLOOR'?0:10), 2, (beamY2-(w.laserType==='CEILING'?0:10)) - (beamY1 + (w.laserType==='FLOOR'?0:10)));
         ctx.fillStyle = `rgba(255, 0, 50, ${flicker * 0.3})`;
         ctx.fillRect(beamX - 3, beamY1 + (w.laserType==='FLOOR'?0:10), 6, (beamY2-(w.laserType==='CEILING'?0:10)) - (beamY1 + (w.laserType==='FLOOR'?0:10)));
-
         if ((w.laserType === 'GATE' || w.laserType === 'FLOOR') && frameCount % 3 === 0) {
             sparks.push({x: beamX, y: 328, vx: (Math.random()-0.5)*4, vy: -Math.random()*3, life: 5});
         }
@@ -376,7 +374,7 @@ function drawFloatingTexts() {
     ctx.textAlign = 'left';
 }
 
-function drawText(){ctx.fillStyle='white';ctx.font='16px monospace';ctx.fillText('Score:'+score,650,20);ctx.fillText('High:'+highScore,650,40);if(!started&&!gameOver){ctx.fillText('Press W to jump, Space to shoot, D to swing',50,200);}if(gameOver){ctx.fillText('Game Over! Press W to jump, Space to shoot, D to swing',50,200);}}
+function drawText(){ctx.fillStyle='white';ctx.font='16px monospace';ctx.fillText('Score:'+score,650,20);ctx.fillText('High:'+highScore,650,40);if(!started&&!gameOver){ctx.fillText('Press A to jump, Shoulders to shoot, Stick to swing',50,200);}if(gameOver){ctx.fillText('Game Over! Press A to restart',50,200);}}
 
 function drawObstacles(){
     let t = getColorTransition();
@@ -393,78 +391,50 @@ function drawObstacles(){
 }
 
 function spawnObstacle(){
-    // Hand-crafted Playable Scenarios (Platforms and Lasers)
     if (score > 4500 && Math.random() > 0.75) {
         let startX = 850;
         let choice = Math.random();
-
         if (choice < 0.5) {
-            // 1. The Stairs: Platforms over floor lasers
             platforms.push({x: startX, y: 240, w: 100, h: 14});
             electricWalls.push({x: startX + 130, y1: 270, y2: 332, w: 6, laserType: 'FLOOR', closeCallTriggered: false});
             platforms.push({x: startX + 180, y: 170, w: 100, h: 14});
             electricWalls.push({x: startX + 310, y1: 220, y2: 332, w: 6, laserType: 'FLOOR', closeCallTriggered: false});
             platforms.push({x: startX + 360, y: 240, w: 100, h: 14});
-            
-            obstacleTimer = 260; 
-            lastObstacleCount = 3;
-            return;
-        } 
-        else {
-            // 2. Thread the Needle: Mid-air gap 
+            obstacleTimer = 260; lastObstacleCount = 3; return;
+        } else {
             electricWalls.push({x: startX + 150, y1: 0, y2: 80, w: 6, laserType: 'CEILING', closeCallTriggered: false});
             electricWalls.push({x: startX + 150, y1: 230, y2: 332, w: 6, laserType: 'FLOOR', closeCallTriggered: false});
-            
-            // Follow up spike
             obstacles.push({x: startX + 400, y: 332, w: 40, h: 30, closeCallTriggered: false});
-            
-            obstacleTimer = 220; 
-            lastObstacleCount = 3;
-            return;
+            obstacleTimer = 220; lastObstacleCount = 3; return;
         }
     }
-
-    // Standard Spikes - Hand-Crafted Playable Jump Arcs
     let startX = 800;
     let choice = Math.random();
-    
     if (score > 2500 && choice < 0.15) {
-        // Ascending Stairs (Requires early jump)
         obstacles.push({x: startX, y: 332, w: 48, h: 40, closeCallTriggered: false});
         obstacles.push({x: startX + 48, y: 332, w: 48, h: 75, closeCallTriggered: false});
         obstacles.push({x: startX + 96, y: 332, w: 48, h: 110, closeCallTriggered: false});
         lastObstacleCount = 3;
-    } 
-    else if (score > 2500 && choice < 0.30) {
-        // Descending Stairs (Taps into the back-half of the jump arc)
+    } else if (score > 2500 && choice < 0.30) {
         obstacles.push({x: startX, y: 332, w: 48, h: 110, closeCallTriggered: false});
         obstacles.push({x: startX + 48, y: 332, w: 48, h: 75, closeCallTriggered: false});
         obstacles.push({x: startX + 96, y: 332, w: 48, h: 40, closeCallTriggered: false});
         lastObstacleCount = 3;
-    }
-    else if (score > 1500 && choice < 0.50) {
-        // The Wall (Single massive spike)
-        let h = 90 + Math.random() * 30; // 90 to 120px
+    } else if (score > 1500 && choice < 0.50) {
+        let h = 90 + Math.random() * 30;
         obstacles.push({x: startX, y: 332, w: 48, h: h, closeCallTriggered: false});
         lastObstacleCount = 1;
-    }
-    else if (score > 1000 && choice < 0.70) {
-        // Twin Peaks
-        let h = 50 + Math.random() * 30; // 50 to 80px
+    } else if (score > 1000 && choice < 0.70) {
+        let h = 50 + Math.random() * 30;
         obstacles.push({x: startX, y: 332, w: 48, h: h, closeCallTriggered: false});
         obstacles.push({x: startX + 48, y: 332, w: 48, h: h, closeCallTriggered: false});
         lastObstacleCount = 2;
-    }
-    else {
-        // Standard Singles and Doubles
-        let h = 30 + Math.random() * 30; // 30 to 60px
+    } else {
+        let h = 30 + Math.random() * 30;
         lastObstacleCount = Math.random() > 0.8 ? 2 : 1;
-        for(let i=0; i<lastObstacleCount; i++) {
-            obstacles.push({x: startX + i*48, y: 332, w: 48, h: h, closeCallTriggered: false});
-        }
+        for(let i=0; i<lastObstacleCount; i++) obstacles.push({x: startX + i*48, y: 332, w: 48, h: h, closeCallTriggered: false});
     }
 }
-
 function spawnCloud(){clouds.push({x:800,y:Math.random()*100+50,size:16+Math.random()*8});}
 
 function spawnEnemy(){
@@ -481,24 +451,43 @@ function spawnEnemy(){
     }
 }
 
-function spawnSparks(x,y){for(let i=0;i<10;i++){sparks.push({x:x,y:y,vx:(Math.random()-0.5)*4,vy:(Math.random()-0.5)*4,life:7});}}
+function spawnSparks(x,y){for(let i=0;i<10;i++)sparks.push({x:x,y:y,vx:(Math.random()-0.5)*4,vy:(Math.random()-0.5)*4,life:7});}
 function spawnMuzzleFlash(){let flashWidth=4+Math.random()*4;muzzleFlashes.push({x:player.x+player.w,y:player.y+player.h/2-15,w:flashWidth,h:4,life:2});}
 
+// --- GAMEPAD POLLING ---
 function pollGamepad() {
     const gamepads = navigator.getGamepads();
     const gp = gamepads[0] || gamepads[1];
     if (gp) {
+        // 1. JUMP / START (Button A - Index 1)
         if (gp.buttons[1].pressed && !lastGamepadButtons[1]) {
             initAudio();
-            if (gameOver) { resetGame(); } 
-            else if (!started) { if (readyToStart) { started=true; readyToStart=false; AudioSys.startMusic(); } } 
-            else { jump(); }
+            if (gameOver) resetGame();
+            else if (!started) { if (readyToStart) { started=true; readyToStart=false; AudioSys.startMusic(); } }
+            else jump();
         }
-        if (!gp.buttons[1].pressed) if (!started && !gameOver) readyToStart = true;
-        if ((gp.buttons[4].pressed || gp.buttons[5].pressed) && (!lastGamepadButtons[4] && !lastGamepadButtons[5])) shoot();
+        if (!gp.buttons[1].pressed && !started && !gameOver) readyToStart = true;
+        
+        // 2. SHOOT (Shoulder Buttons - Indices 4 and 5)
+        if ((gp.buttons[4].pressed || gp.buttons[5].pressed) && (!lastGamepadButtons[4] && !lastGamepadButtons[5])) {
+            shoot();
+        }
+
+        // 3. SWING (Analog Stick Flick - REQUIRES RESET TO CENTER)
         const deadzone = 0.5;
-        if (Math.abs(gp.axes[0]) > deadzone || Math.abs(gp.axes[1]) > deadzone) swing();
+        const stickMagnitude = Math.sqrt(gp.axes[0]**2 + gp.axes[1]**2);
+        if (stickMagnitude > deadzone) {
+            if (!lastGamepadStickActive) {
+                swing();
+                lastGamepadStickActive = true;
+            }
+        } else {
+            lastGamepadStickActive = false;
+        }
+
+        // 4. FAST FALL (Button B - Index 0)
         if (gp.buttons[0].pressed) keysDown['KeyS'] = true; else keysDown['KeyS'] = false;
+
         gp.buttons.forEach((btn, i) => lastGamepadButtons[i] = btn.pressed);
     }
 }
@@ -522,11 +511,9 @@ function update(){
     if (player.coyoteTime > 0) player.coyoteTime--;
     if (player.jumpBuffer > 0) player.jumpBuffer--;
     if(score >= 2000) { if(transitionTimer <= 0) { if(targetTransition === 1) { targetTransition = 0; transitionTimer = 300 + Math.random() * 600; } else { targetTransition = 1; transitionTimer = 120 + Math.random() * 180; } } else { transitionTimer--; } currentTransition += (targetTransition - currentTransition) * 0.008; }
-    player.frame++;
-    player.vy+=gravity;
+    player.frame++; player.vy+=gravity;
     if(keysDown['KeyS']&&player.jumping)player.vy+=fastFallPower;
-    let wasAir=player.jumping;
-    player.y+=player.vy;
+    let wasAir=player.jumping; player.y+=player.vy;
     let onPlatform = false;
     platforms.forEach(p => {
         const feetY = player.y + player.h;
@@ -581,15 +568,14 @@ function update(){
     });
     enemyBullets.forEach(eb=>{ if(!eb.remove && player.x<eb.x+eb.r&&player.x+player.w>eb.x-eb.r&&player.y+player.h>eb.y-eb.r&&player.y<eb.y+eb.r) crashGame(12); });
     enemies.forEach(e=>{ if(!e.exploding){ let eH = e.type==='orb'?28:(e.type==='dog'?16:32); if(player.x<e.x+e.w&&player.x+player.w>e.x&&player.y+player.h>e.y&&player.y<e.y+eH) crashGame(14); } });
-    score++;
-    if(score%150===0) { speed+=0.5; if(speed>11)speed=11; }
+    score++; if(score%150===0) { speed+=0.5; if(speed>11)speed=11; }
 }
 
 function jump(){ if(gameOver) return; if(!player.jumping || player.coyoteTime > 0) executeJump(); else player.jumpBuffer = 8; }
 function executeJump() { player.vy=jumpPower; player.jumping=true; player.coyoteTime = 0; player.scaleX = 0.6; player.scaleY = 1.4; AudioSys.jump(); initAudio(); }
 function shoot() { if(!gameOver&&shootCooldown===0&&started){ bullets.push({x:player.x+player.w+4,y:player.y+player.h/2-14}); casings.push({x: player.x + player.w/2, y: player.y - 8, vx: -2 - Math.random()*3, vy: -3 - Math.random()*3, rot: Math.random()*Math.PI, life: 60}); spawnMuzzleFlash(); AudioSys.shoot(); initAudio(); shootCooldown=6;player.recoil=3; } }
 function swing() { if(!player.swinging&&!gameOver&&started){ player.swinging=true;player.swingFrame=0; AudioSys.sword(); initAudio(); } }
-function resetGame(){ gameOver=false;obstacles=[];clouds=[];enemies=[];bullets=[];sparks=[];muzzleFlashes=[]; enemyBullets=[];platforms=[];electricWalls=[]; trails=[]; grassParticles=[]; casings=[]; floatingTexts=[]; markers=[]; player.y=300;player.vy=0;score=0;speed=5;frameCount=0;player.recoil=0;started=false; player.jumping=false; player.coyoteTime=0; player.jumpBuffer=0; player.scaleX=1; player.scaleY=1; readyToStart = true; currentTransition = 0; targetTransition = 0; transitionTimer = 0; nextMarkerScore=1000; obstacleTimer = 0; enemyTimer = 40; lastObstacleCount = 1; AudioSys.stopMusic(); }
+function resetGame(){ gameOver=false;obstacles=[];clouds=[];enemies=[];bullets=[];sparks=[];muzzleFlashes=[]; enemyBullets=[];platforms=[];electricWalls=[]; trails=[]; grassParticles=[]; casings=[]; floatingTexts=[]; markers=[]; player.y=300;player.vy=0;score=0;speed=5;frameCount=0;player.recoil=0;started=false; player.jumping=false; player.coyoteTime=0; player.jumpBuffer=0; player.scaleX=1; player.scaleY=1; readyToStart = true; currentTransition = 0; targetTransition = 0; transitionTimer = 0; nextMarkerScore=1000; obstacleTimer = 0; enemyTimer = 40; lastObstacleCount = 1; lastGamepadStickActive = false; AudioSys.stopMusic(); }
 
 document.addEventListener('keydown',e=>{
     keysDown[e.code]=true;
@@ -600,40 +586,12 @@ document.addEventListener('keydown',e=>{
 document.addEventListener('keyup',e=>{ keysDown[e.code]=false; if(e.code==='KeyW' && !started && !gameOver) readyToStart = true; });
 
 function loop(){
-    frameCount++;
-    ctx.save();
-    applyShake();
-    
-    // Background Layer
-    drawStars();
-    drawClouds(); 
-    drawDistanceMarkers();
-    
-    // Environment Layer
-    drawGround();
-    drawPlatforms();
-    drawElectricWalls();
-    drawObstacles();
-    
-    // Entity Layer
-    drawEnemies();
-    drawEnemyBullets();
-    drawBullets();
-    drawPlayer(); // Drawn in front of platforms
-    
-    // FX/UI Layer
-    drawCasings();
-    drawGrass();
-    drawSparks();
-    drawMuzzleFlashes();
-    drawDust();
-    drawFloatingTexts();
-    drawText();
-    
+    frameCount++; ctx.save(); applyShake();
+    drawStars(); drawClouds(); drawGround(); drawDistanceMarkers(); drawElectricWalls(); drawPlatforms(); drawPlayer();
+    drawEnemies(); drawBullets(); drawEnemyBullets(); drawCasings(); drawGrass(); drawSparks(); drawMuzzleFlashes(); drawDust(); drawFloatingTexts(); drawText();
     ctx.restore();
     if(!started&&!gameOver)player.frame++;
-    update();
-    requestAnimationFrame(loop);
+    update(); requestAnimationFrame(loop);
 }
 loop();
 </script>
