@@ -178,6 +178,7 @@ function drawStars(){
 }
 
 let groundScroll = 0;
+let lightScroll = 0;
 
 function drawGround(){
     let t = getColorTransition();
@@ -185,6 +186,7 @@ function drawGround(){
 
     if (started && !gameOver) {
         groundScroll = (groundScroll - speed) % 320;
+        lightScroll -= speed;
     }
     
     // --- THRUSTER LOGIC SAVED FOR LATER (COMMENTED OUT) ---
@@ -230,10 +232,10 @@ function drawGround(){
     ctx.fillStyle = hoverGradient;
     ctx.fillRect(0, 356, 800, 24);
 
-    // Subtle pulsing particles to show energy movement (Now properly scrolling right-to-left)
-    for(let i = 0; i < 5; i++) {
-        // Safe reverse-scrolling math: always stays between 0 and 800
-        let px = 800 - ((frameCount * (speed * 0.6) + i * 160) % 800);
+    // Subtle pulsing particles to show energy movement
+    for(let i = 0; i < 6; i++) {
+        // Smoothly scroll right-to-left with game speed, wrapping seamlessly off-screen
+        let px = ((i * 160 + 80 + lightScroll + 100) % 960 + 960) % 960 - 100;
         ctx.fillStyle = 'rgba(100, 200, 255, 0.3)';
         // Add a pseudo-random depth offset so they float at varying heights
         let depthOffset = (i * 17) % 24;
@@ -728,7 +730,7 @@ function jump(){ if(gameOver) return; if(!player.jumping || player.coyoteTime > 
 function executeJump() { player.vy=jumpPower; player.jumping=true; player.coyoteTime = 0; player.scaleX = 0.6; player.scaleY = 1.4; AudioSys.jump(); initAudio(); }
 function shoot() { if(!gameOver&&shootCooldown===0&&started){ bullets.push({x:player.x+player.w+4,y:player.y+player.h/2-14}); casings.push({x: player.x + player.w/2, y: player.y - 8, vx: -2 - Math.random()*3, vy: -3 - Math.random()*3, rot: Math.random()*Math.PI, life: 60}); spawnMuzzleFlash(player.x+player.w, player.y+player.h/2-14); AudioSys.shoot(); initAudio(); shootCooldown=6;player.recoil=3; } }
 function swing() { if(!player.swinging&&!gameOver&&started){ player.swinging=true;player.swingFrame=0; AudioSys.sword(); initAudio(); } }
-function resetGame(){ gameOver=false;obstacles=[];clouds=[];enemies=[];bullets=[];sparks=[];muzzleFlashes=[]; enemyBullets=[];platforms=[];electricWalls=[]; trails=[]; grassParticles=[]; casings=[]; floatingTexts=[]; markers=[]; player.y=300;player.vy=0;score=0;speed=5;frameCount=0;player.recoil=0;started=false; player.jumping=false; player.coyoteTime=0; player.jumpBuffer=0; player.scaleX=1; player.scaleY=1; readyToStart = true; currentTransition = 0; targetTransition = 0; transitionTimer = 0; nextMarkerScore=1000; obstacleTimer = 0; enemyTimer = 40; lastObstacleCount = 1; lastGamepadStickActive = false; AudioSys.stopMusic(); }
+function resetGame(){ gameOver=false;obstacles=[];clouds=[];enemies=[];bullets=[];sparks=[];muzzleFlashes=[]; enemyBullets=[];platforms=[];electricWalls=[]; trails=[]; grassParticles=[]; casings=[]; floatingTexts=[]; markers=[]; player.y=300;player.vy=0;score=0;speed=5;frameCount=0;player.recoil=0;started=false; player.jumping=false; player.coyoteTime=0; player.jumpBuffer=0; player.scaleX=1; player.scaleY=1; readyToStart = true; currentTransition = 0; targetTransition = 0; transitionTimer = 0; nextMarkerScore=1000; obstacleTimer = 0; enemyTimer = 40; lastObstacleCount = 1; lastGamepadStickActive = false; groundScroll = 0; lightScroll = 0; AudioSys.stopMusic(); }
 
 document.addEventListener('keydown',e=>{
     keysDown[e.code]=true;
