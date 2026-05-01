@@ -124,7 +124,7 @@ let player={
     scaleY:1  
 };
 
-let trails=[], grassParticles=[], casings=[], floatingTexts=[], markers=[];
+let trails=[], grassParticles=[], casings=[], floatingTexts=[], markers=[], shatterParticles=[];
 let shake=0;
 let nextMarkerScore = 1000;
 
@@ -337,8 +337,20 @@ function drawPlayerBody(p, isTrail, alpha, colorOverride) {
 }
 
 function drawPlayer(){
+    if(gameOver) return;
     trails.forEach(t => drawPlayerBody(t, true, (t.life/t.maxLife)*0.4));
     drawPlayerBody(player, false, 1);
+}
+
+function drawShatter() {
+    shatterParticles.forEach(p => {
+        ctx.save();
+        ctx.translate(p.x, p.y);
+        ctx.rotate(p.rot);
+        ctx.fillStyle = p.color;
+        ctx.fillRect(-p.size/2, -p.size/2, p.size, p.size);
+        ctx.restore();
+    });
 }
 
 function drawEnemies(){
@@ -576,7 +588,16 @@ function pollGamepad() {
 
 function update(){
     pollGamepad();
-    if(gameOver||!started)return;
+    if(gameOver){
+        shatterParticles.forEach(p => {
+            p.x += p.vx;
+            p.y += p.vy;
+            p.vy += gravity * 0.1; 
+            p.rot += p.vrot;
+        });
+        return;
+    }
+    if(!started)return;
     player.scaleX += (1 - player.scaleX) * 0.2;
     player.scaleY += (1 - player.scaleY) * 0.2;
     if (frameCount % 3 === 0 && (player.jumping || speed > 6)) trails.push({x: player.x, y: player.y, frame: player.frame, life: 10, maxLife: 10, scaleX: player.scaleX, scaleY: player.scaleY, recoil: player.recoil});
@@ -714,7 +735,21 @@ function update(){
     muzzleFlashes.forEach((f,i)=>{f.life--;if(f.life<=0)muzzleFlashes.splice(i,1);});
     dusts.forEach((d,i)=>{d.x+=d.vx;d.y+=d.vy;d.vy+=0.2;d.life--;if(d.life<=0)dusts.splice(i,1);});
     if(shootCooldown>0)shootCooldown--;
-    const crashGame = (shakeAmt) => { gameOver=true; AudioSys.crash(); AudioSys.stopMusic(); if(score>highScore)highScore=score; shake=shakeAmt; };
+    const crashGame = (shakeAmt) => { 
+        gameOver=true; AudioSys.crash(); AudioSys.stopMusic(); if(score>highScore)highScore=score; shake=shakeAmt; 
+        for(let i=0; i<30; i++) {
+            shatterParticles.push({
+                x: player.x + player.w/2,
+                y: player.y + 16,
+                vx: (Math.random() - 0.2) * -6,
+                vy: (Math.random() - 1) * 5,
+                vrot: (Math.random() - 0.5) * 0.2,
+                rot: Math.random() * Math.PI * 2,
+                size: 2 + Math.random() * 4,
+                color: '#ffffff'
+            });
+        }
+    };
     obstacles.forEach(o=>{ let hitX = o.x + o.w * 0.25; let hitW = o.w * 0.5; let hitY = o.y - o.h * 0.7; if(player.x < hitX + hitW && player.x + player.w > hitX && player.y + player.h > hitY) crashGame(12); else if (!o.closeCallTriggered && player.x + player.w > hitX - 15 && player.x < hitX + hitW + 15) { if (player.y + player.h <= hitY && player.y + player.h > hitY - 20) { o.closeCallTriggered = true; floatingTexts.push({x: hitX + hitW/2, y: hitY - 10, text: "*close call*", life: 40}); } } });
     electricWalls.forEach(w=>{ 
         const beamX = w.x + w.w/2;
@@ -730,7 +765,7 @@ function jump(){ if(gameOver) return; if(!player.jumping || player.coyoteTime > 
 function executeJump() { player.vy=jumpPower; player.jumping=true; player.coyoteTime = 0; player.scaleX = 0.6; player.scaleY = 1.4; AudioSys.jump(); initAudio(); }
 function shoot() { if(!gameOver&&shootCooldown===0&&started){ bullets.push({x:player.x+player.w+4,y:player.y+player.h/2-14}); casings.push({x: player.x + player.w/2, y: player.y - 8, vx: -2 - Math.random()*3, vy: -3 - Math.random()*3, rot: Math.random()*Math.PI, life: 60}); spawnMuzzleFlash(player.x+player.w, player.y+player.h/2-14); AudioSys.shoot(); initAudio(); shootCooldown=6;player.recoil=3; } }
 function swing() { if(!player.swinging&&!gameOver&&started){ player.swinging=true;player.swingFrame=0; AudioSys.sword(); initAudio(); } }
-function resetGame(){ gameOver=false;obstacles=[];clouds=[];enemies=[];bullets=[];sparks=[];muzzleFlashes=[]; enemyBullets=[];platforms=[];electricWalls=[]; trails=[]; grassParticles=[]; casings=[]; floatingTexts=[]; markers=[]; player.y=300;player.vy=0;score=0;speed=5;frameCount=0;player.recoil=0;started=false; player.jumping=false; player.coyoteTime=0; player.jumpBuffer=0; player.scaleX=1; player.scaleY=1; readyToStart = true; currentTransition = 0; targetTransition = 0; transitionTimer = 0; nextMarkerScore=1000; obstacleTimer = 0; enemyTimer = 40; lastObstacleCount = 1; lastGamepadStickActive = false; groundScroll = 0; lightScroll = 0; AudioSys.stopMusic(); }
+function resetGame(){ gameOver=false;obstacles=[];clouds=[];enemies=[];bullets=[];sparks=[];muzzleFlashes=[]; enemyBullets=[];platforms=[];electricWalls=[]; trails=[]; grassParticles=[]; casings=[]; floatingTexts=[]; markers=[]; shatterParticles=[]; player.y=300;player.vy=0;score=0;speed=5;frameCount=0;player.recoil=0;started=false; player.jumping=false; player.coyoteTime=0; player.jumpBuffer=0; player.scaleX=1; player.scaleY=1; readyToStart = true; currentTransition = 0; targetTransition = 0; transitionTimer = 0; nextMarkerScore=1000; obstacleTimer = 0; enemyTimer = 40; lastObstacleCount = 1; lastGamepadStickActive = false; groundScroll = 0; lightScroll = 0; AudioSys.stopMusic(); }
 
 document.addEventListener('keydown',e=>{
     keysDown[e.code]=true;
@@ -755,6 +790,7 @@ function loop(){
     drawEnemyBullets();
     drawBullets();
     drawPlayer(); 
+    drawShatter();
     drawCasings();
     drawGrass();
     drawSparks();
