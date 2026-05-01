@@ -138,8 +138,9 @@ let currentTransition = 0, targetTransition = 0, transitionTimer = 0;
 let obstacleTimer = 100, enemyTimer = 140, lastObstacleCount = 1; 
 
 // --- HUD & LOGO STATE ---
-let titleVisible = true, titleScrollX = 0;
 let firstLoad = true; 
+let introAnimState = 0; // 0: Logo Active, 1: Bullet Flying, 2: Shattered/Game Started
+let introBullet = {x: 800, y: 150};
 let rebootGlitchTimer = 0;
 let deathTimer = 0;
 
@@ -194,7 +195,6 @@ function drawGround(){
         lightScroll -= speed;
     }
     
-    // Draw Hover Floating Light
     let hoverGradient = ctx.createLinearGradient(0, 356, 0, 380);
     hoverGradient.addColorStop(0, 'rgba(100, 200, 255, 0.4)');
     hoverGradient.addColorStop(1, 'rgba(100, 200, 255, 0)');
@@ -208,11 +208,9 @@ function drawGround(){
         ctx.fillRect(px, 356 + depthOffset + Math.sin(frameCount * 0.05 + i) * 5, 24, 2);
     }
 
-    // MAIN SLAB: Matched to the premium silver-white of the title
     ctx.fillStyle='#e0e0e0';
     ctx.fillRect(0,332,800,24); 
 
-    // Neon trim
     ctx.fillStyle = '#00f2ff';
     ctx.fillRect(0, 332, 800, 3);
     
@@ -259,7 +257,6 @@ function drawPlayerBody(p, isTrail, alpha, colorOverride) {
         ctx.fillRect(p.x-2+recoilOffset, p.y+16+legSwing, 4, 8);
         ctx.fillRect(p.x+14+recoilOffset, p.y+16-legSwing, 4, 8);
     } else {
-        // Body Color matched to title silver-white
         let bodyColor = colorOverride || '#e0e0e0';
         ctx.fillStyle=bodyColor; ctx.fillRect(p.x+recoilOffset,p.y-16,p.w,32);
         ctx.fillStyle='black'; ctx.fillRect(p.x+2+recoilOffset,p.y-12,12,4);
@@ -279,8 +276,30 @@ function drawPlayerBody(p, isTrail, alpha, colorOverride) {
     ctx.restore();
 }
 
-function drawPlayer(){ if(gameOver) return; trails.forEach(t => drawPlayerBody(t, true, (t.life/t.maxLife)*0.4)); drawPlayerBody(player, false, 1); }
-function drawShatter() { shatterParticles.forEach(p => { ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.rot); ctx.fillStyle = p.color; ctx.fillRect(-p.size/2, -p.size/2, p.size, p.size); ctx.restore(); }); }
+function drawPlayer(){ 
+    if(gameOver) return; 
+    trails.forEach(t => {
+        let trailAlpha = (t.life / t.maxLife) * 0.4;
+        // Use the darker, more transparent blue from the floor logic
+        drawPlayerBody(t, true, trailAlpha, `rgba(100, 200, 255, ${trailAlpha})`);
+    }); 
+    drawPlayerBody(player, false, 1); 
+}
+
+function drawShatter() { 
+    shatterParticles.forEach(p => { 
+        ctx.save(); 
+        ctx.translate(p.x, p.y); 
+        ctx.rotate(p.rot); 
+        if (p.glow) {
+            ctx.shadowColor = '#00f2ff';
+            ctx.shadowBlur = 6;
+        }
+        ctx.fillStyle = p.color; 
+        ctx.fillRect(-p.size/2, -p.size/2, p.size, p.size); 
+        ctx.restore(); 
+    }); 
+}
 
 function drawEnemies(){
     enemies.forEach(e=>{
@@ -361,7 +380,7 @@ function drawSystemRebootPage() {
     ctx.fillText('FUEL LEVELS... [STABLE]', 50, 165);
     ctx.globalAlpha = Math.abs(Math.sin(rebootGlitchTimer * 0.1));
     ctx.font = 'bold 16px monospace';
-    ctx.fillText('PRESS W TO REBOOT', 50, 200);
+    ctx.fillText('PRESS W TO RETURN', 50, 200);
     ctx.restore();
 }
 
@@ -371,14 +390,14 @@ function drawText(){
     ctx.fillText('Score:'+score, 650, 20);
     ctx.fillText('High:'+highScore, 650, 40);
     
-    // Logo logic
-    if (titleVisible && firstLoad) {
+    // Initial Load Logo Logic (Before shattering)
+    if (firstLoad && introAnimState < 2) {
         ctx.save();
-        ctx.globalAlpha = (!started) ? Math.max(0, Math.min(1, frameCount / 15)) : 1;
+        ctx.globalAlpha = Math.max(0, Math.min(1, frameCount / 15));
         
         let titleScale = 1;
         let floatY = 0;
-        const riseTime = 20, holdPeak = 20, fallTime = 20; 
+        const riseTime = 20, holdPeak = 15, fallTime = 20; 
         const endAnim = riseTime + holdPeak + fallTime; 
 
         if (frameCount < riseTime) titleScale = 1 + Math.sin((frameCount / riseTime) * (Math.PI / 2)) * 0.1;
@@ -389,40 +408,44 @@ function drawText(){
         }
         if (frameCount >= endAnim) floatY = Math.sin((frameCount - endAnim) * 0.05) * 8;
         
-        ctx.translate(Math.round(400 - titleScrollX), Math.round(125 + floatY));
+        ctx.translate(400, Math.round(125 + floatY));
         ctx.scale(titleScale, titleScale); 
         ctx.textAlign = 'center';
-        
-        // Match floor's tight styling and color palette
         ctx.letterSpacing = "-5px"; 
         ctx.font = 'bold 60px monospace';
         
         const drawObject = (t, y) => {
-            // MATCHING FLOOR UNDERGLOW EXACTLY:
             ctx.shadowColor = 'rgba(100, 200, 255, 0.6)'; 
             ctx.shadowBlur = 8; 
             ctx.fillStyle = 'rgb(80, 160, 210)'; 
-            
-            for(let i=1; i<=4; i++) {
-                ctx.fillText(t, 0, y + i);
-            }
-            
+            for(let i=1; i<=4; i++) ctx.fillText(t, 0, y + i);
             ctx.shadowBlur = 0;
-            ctx.fillStyle = '#e0e0e0'; // Premium Silver-White
-            ctx.fillText(t, -1, y);
-            ctx.fillText(t, 1, y);
-            ctx.fillText(t, 0, y - 1);
-            ctx.fillText(t, 0, y + 1);
+            ctx.fillStyle = '#e0e0e0';
+            ctx.fillText(t, -1, y); ctx.fillText(t, 1, y);
+            ctx.fillText(t, 0, y - 1); ctx.fillText(t, 0, y + 1);
             ctx.fillText(t, 0, y);
         };
         
         drawObject('RED', -22);
         drawObject('BULLETS', 22);
         ctx.restore();
-        ctx.letterSpacing = "0px";
+    }
+    
+    // Draw the Intro Bullet that flies in to hit the title
+    if (introAnimState === 1) {
+        ctx.save();
+        for(let t=0;t<3;t++){
+            let tx = introBullet.x + t*8; 
+            ctx.fillStyle = `rgba(255,50,50,${0.12*(3-t)})`;
+            ctx.fillRect(tx, introBullet.y-2, 12, 4);
+        }
+        ctx.fillStyle = 'red';
+        ctx.fillRect(introBullet.x, introBullet.y-2, 12, 4);
+        ctx.restore();
     }
 
-    if(!started && !gameOver){
+    // Directions Overlay (Shows on load, hides when bullet flies. Also shows after reboot dismissal)
+    if(!started && !gameOver && introAnimState === 0){
         ctx.save();
         ctx.globalAlpha = Math.max(0, Math.min(1, frameCount / 40));
         ctx.fillStyle = 'white';
@@ -432,6 +455,7 @@ function drawText(){
         ctx.restore();
     }
     
+    // IMMEDIATE Reboot Screen on Death
     if(gameOver){
         drawSystemRebootPage();
     }
@@ -481,10 +505,41 @@ function spawnEnemy(){
 function spawnSparks(x,y){for(let i=0;i<10;i++)sparks.push({x:x,y:y,vx:(Math.random()-0.5)*4,vy:(Math.random()-0.5)*4,life:7});}
 function spawnMuzzleFlash(ex, ey){let flashWidth=4+Math.random()*4;muzzleFlashes.push({x:ex,y:ey,w:flashWidth,h:4,life:2});}
 
+// Game Start Trigger Function
+function triggerStart() {
+    if (readyToStart) {
+        if (firstLoad && introAnimState === 0) {
+            // First load: Fire bullet to shatter title
+            introAnimState = 1;
+            readyToStart = false;
+            const riseTime = 20, holdPeak = 15, fallTime = 20; 
+            const endAnim = riseTime + holdPeak + fallTime; 
+            let floatY = frameCount >= endAnim ? Math.sin((frameCount - endAnim) * 0.05) * 8 : 0;
+            // Spawn bullet targeting the 'S' in RED BULLETS
+            introBullet = {x: 800, y: 125 + floatY + 12}; 
+            AudioSys.shoot();
+            
+            // Start movement and music immediately as the bullet fires
+            started = true;
+            AudioSys.startMusic();
+        } else if (!firstLoad && introAnimState === 0) {
+            // Standard start (not used currently since firstLoad resets to true)
+            readyToStart = false;
+            started = true;
+            AudioSys.startMusic();
+        }
+    }
+}
+
 function pollGamepad() {
     const gamepads = navigator.getGamepads(); const gp = gamepads[0] || gamepads[1];
     if (gp) {
-        if (gp.buttons[1].pressed && !lastGamepadButtons[1]) { initAudio(); if (gameOver) resetGame(); else if (!started) { if (readyToStart) { started=true; readyToStart=false; AudioSys.startMusic(); } } else jump(); }
+        if (gp.buttons[1].pressed && !lastGamepadButtons[1]) { 
+            initAudio(); 
+            if (gameOver) resetGame(); 
+            else if (!started) triggerStart(); 
+            else jump(); 
+        }
         if (!gp.buttons[1].pressed && !started && !gameOver) readyToStart = true;
         if ((gp.buttons[4].pressed || gp.buttons[5].pressed) && (!lastGamepadButtons[4] && !lastGamepadButtons[5])) shoot();
         const deadzone = 0.5; const stickMagnitude = Math.sqrt(gp.axes[0]**2 + gp.axes[1]**2);
@@ -496,17 +551,53 @@ function pollGamepad() {
 
 function update(){
     pollGamepad();
+    
+    // Always process shatter particles
+    shatterParticles.forEach((p, i) => { 
+        p.x += p.vx; 
+        p.y += p.vy; 
+        p.vy += gravity * 0.1; 
+        p.rot += p.vrot; 
+    });
+    shatterParticles = shatterParticles.filter(p => p.y < 450); 
+
     if(gameOver){
         deathTimer++;
-        shatterParticles.forEach(p => { p.x += p.vx; p.y += p.vy; p.vy += gravity * 0.1; p.rot += p.vrot; });
         return;
     }
-    if(!started)return;
-    
-    if(titleVisible) { 
-        titleScrollX += speed; 
-        if(400 - titleScrollX < -500) { titleVisible = false; } 
+
+    // Intro Bullet Animation Update
+    if (introAnimState === 1) {
+        introBullet.x -= 24; 
+        if (introBullet.x <= 530) { 
+            introAnimState = 2; 
+            AudioSys.explode();
+            
+            const riseTime = 20, holdPeak = 15, fallTime = 20; 
+            const endAnim = riseTime + holdPeak + fallTime; 
+            let floatY = frameCount >= endAnim ? Math.sin((frameCount - endAnim) * 0.05) * 8 : 0;
+            
+            for(let i=0; i<80; i++) {
+                shatterParticles.push({ 
+                    x: 400 + (Math.random() - 0.5) * 260, 
+                    y: 125 + floatY + (Math.random() - 0.5) * 60, 
+                    vx: (Math.random() - 0.5) * 15 - 5, 
+                    vy: (Math.random() - 1) * 12, 
+                    vrot: (Math.random() - 0.5) * 0.4, 
+                    rot: Math.random() * Math.PI * 2, 
+                    size: 2 + Math.random() * 8, 
+                    color: '#e0e0e0', 
+                    glow: true 
+                });
+            }
+            
+            for(let i=0; i<20; i++) {
+                sparks.push({x: 530, y: 125 + floatY + 10, vx: (Math.random()-0.5)*12, vy: (Math.random()-0.5)*12, life: 20});
+            }
+        }
     }
+
+    if(!started) return;
 
     player.scaleX += (1 - player.scaleX) * 0.2; player.scaleY += (1 - player.scaleY) * 0.2;
     if (frameCount % 3 === 0 && (player.jumping || speed > 6)) trails.push({x: player.x, y: player.y, frame: player.frame, life: 10, maxLife: 10, scaleX: player.scaleX, scaleY: player.scaleY, recoil: player.recoil});
@@ -566,7 +657,19 @@ function update(){
     }
 
     if(player.recoil>0)player.recoil--; sparks.forEach((s,i)=>{s.x+=s.vx;s.y+=s.vy;s.vx*=0.95;s.vy*=0.95;s.life--;if(s.life<=0)sparks.splice(i,1);}); muzzleFlashes.forEach((f,i)=>{f.life--;if(f.life<=0)muzzleFlashes.splice(i,1);}); dusts.forEach((d,i)=>{d.x+=d.vx;d.y+=d.vy;d.vy+=0.2;d.life--;if(d.life<=0)dusts.splice(i,1);}); if(shootCooldown>0)shootCooldown--;
-    const crashGame = (shakeAmt) => { gameOver=true; AudioSys.crash(); AudioSys.stopMusic(); if(score>highScore)highScore=score; shake=shakeAmt; deathTimer = 0; for(let i=0; i<30; i++) { shatterParticles.push({ x: player.x + player.w/2, y: player.y + 16, vx: (Math.random() - 0.2) * -6, vy: (Math.random() - 1) * 5, vrot: (Math.random() - 0.5) * 0.2, rot: Math.random() * Math.PI * 2, size: 2 + Math.random() * 4, color: '#e0e0e0' }); } };
+    
+    const crashGame = (shakeAmt) => { 
+        gameOver=true; AudioSys.crash(); AudioSys.stopMusic(); if(score>highScore)highScore=score; shake=shakeAmt; deathTimer = 0; 
+        for(let i=0; i<30; i++) { 
+            shatterParticles.push({ 
+                x: player.x + player.w/2, y: player.y + 16, 
+                vx: (Math.random() - 0.2) * -6, vy: (Math.random() - 1) * 5, 
+                vrot: (Math.random() - 0.5) * 0.2, rot: Math.random() * Math.PI * 2, 
+                size: 2 + Math.random() * 4, color: 'white', glow: false 
+            }); 
+        } 
+    };
+    
     obstacles.forEach(o=>{ let hitX = o.x + o.w * 0.25; let hitW = o.w * 0.5; let hitY = o.y - o.h * 0.7; if(player.x < hitX + hitW && player.x + player.w > hitX && player.y + player.h > hitY) crashGame(12); else if (!o.closeCallTriggered && player.x + player.w > hitX - 15 && player.x < hitX + hitW + 15) { if (player.y + player.h <= hitY && player.y + player.h > hitY - 20) { o.closeCallTriggered = true; floatingTexts.push({x: hitX + hitW/2, y: hitY - 10, text: "*close call*", life: 40}); } } });
     electricWalls.forEach(w=>{ const beamX = w.x + w.w/2; if(player.x < beamX + 3 && player.x + player.w > beamX - 3 && player.y + player.h > w.y1 && player.y < w.y2) crashGame(16); else if (!w.closeCallTriggered && player.x + player.w > beamX - 15 && player.x < beamX + 15) { if ((player.y + player.h <= w.y1 && player.y + player.h > w.y1 - 15) || (player.y >= w.y2 && player.y < w.y2 + 15)) { w.closeCallTriggered = true; floatingTexts.push({x: beamX, y: (w.laserType === 'CEILING' ? w.y2 + 10 : w.y1 - 10), text: "*close call*", life: 40}); } } });
     enemyBullets.forEach(eb=>{ if(!eb.deflected && !eb.remove && player.x<eb.x+eb.r&&player.x+player.w>eb.x-eb.r&&player.y+player.h>eb.y-eb.r&&player.y<eb.y+eb.r) crashGame(12); });
@@ -578,11 +681,30 @@ function jump(){ if(gameOver) return; if(!player.jumping || player.coyoteTime > 
 function executeJump() { player.vy=jumpPower; player.jumping=true; player.coyoteTime = 0; player.scaleX = 0.6; player.scaleY = 1.4; AudioSys.jump(); initAudio(); }
 function shoot() { if(!gameOver&&shootCooldown===0&&started){ bullets.push({x:player.x+player.w+4,y:player.y+player.h/2-14}); casings.push({x: player.x + player.w/2, y: player.y - 8, vx: -2 - Math.random()*3, vy: -3 - Math.random()*3, rot: Math.random()*Math.PI, life: 60}); spawnMuzzleFlash(player.x+player.w, player.y+player.h/2-14); AudioSys.shoot(); initAudio(); shootCooldown=6;player.recoil=3; } }
 function swing() { if(!player.swinging&&!gameOver&&started){ player.swinging=true;player.swingFrame=0; AudioSys.sword(); initAudio(); } }
-function resetGame(){ gameOver=false;obstacles=[];clouds=[];enemies=[];bullets=[];sparks=[];muzzleFlashes=[]; enemyBullets=[];platforms=[];electricWalls=[]; trails=[]; grassParticles=[]; casings=[]; floatingTexts=[]; markers=[]; shatterParticles=[]; deathTimer=0; player.y=300;player.vy=0;score=0;speed=5;frameCount=0;player.recoil=0;started=false; player.jumping=false; player.coyoteTime=0; player.jumpBuffer=0; player.scaleX=1; player.scaleY=1; readyToStart = true; currentTransition = 0; targetTransition = 0; transitionTimer = 0; nextMarkerScore=1000; obstacleTimer = 100; enemyTimer = 140; lastObstacleCount = 1; lastGamepadStickActive = false; groundScroll = 0; lightScroll = 0; titleScrollX = 0; titleVisible = true; firstLoad = false; rebootGlitchTimer = 0; AudioSys.stopMusic(); }
+
+function resetGame(){ 
+    gameOver=false;
+    obstacles=[];clouds=[];enemies=[];bullets=[];sparks=[];muzzleFlashes=[]; enemyBullets=[];platforms=[];electricWalls=[]; trails=[]; grassParticles=[]; casings=[]; floatingTexts=[]; markers=[]; shatterParticles=[]; 
+    deathTimer=0; player.y=300;player.vy=0;score=0;speed=5;frameCount=0;player.recoil=0;started=false; player.jumping=false; player.coyoteTime=0; player.jumpBuffer=0; player.scaleX=1; player.scaleY=1; 
+    readyToStart = true; currentTransition = 0; targetTransition = 0; transitionTimer = 0; nextMarkerScore=1000; obstacleTimer = 100; enemyTimer = 140; lastObstacleCount = 1; lastGamepadStickActive = false; groundScroll = 0; lightScroll = 0; 
+    firstLoad = true; // REAPPLY LOGO ON RESTART
+    introAnimState = 0; // RESET INTRO ANIMATION
+    rebootGlitchTimer = 0; 
+    AudioSys.stopMusic(); 
+}
 
 document.addEventListener('keydown',e=>{
     keysDown[e.code]=true;
-    if(e.code==='KeyW'){ initAudio(); if(gameOver){ resetGame(); } else if(!started){ if (readyToStart) { started=true; readyToStart=false; AudioSys.startMusic(); } } else { jump(); } }
+    if(e.code==='KeyW'){ 
+        initAudio(); 
+        if(gameOver){ 
+            resetGame(); 
+        } else if(!started){ 
+            triggerStart(); 
+        } else { 
+            jump(); 
+        } 
+    }
     if(e.code==='Space') shoot();
     if(e.code==='KeyD') swing();
 });
