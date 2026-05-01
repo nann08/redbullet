@@ -136,6 +136,7 @@ let keysDown={}, shootCooldown=0,started=false;
 let readyToStart = true; 
 let currentTransition = 0, targetTransition = 0, transitionTimer = 0;
 let obstacleTimer = 0, enemyTimer = 40, lastObstacleCount = 1;
+let deathTimer = 0;
 
 // --- INPUT TRACKING ---
 let lastGamepadButtons = [];
@@ -473,11 +474,21 @@ function drawText(){
     ctx.font='16px monospace';
     ctx.fillText('Score:'+score,650,20);
     ctx.fillText('High:'+highScore,650,40);
+    
     if(!started&&!gameOver){
+        ctx.save();
+        // Fades in smoothly over the first 40 frames of loading/rebooting
+        ctx.globalAlpha = Math.max(0, Math.min(1, frameCount / 40));
         ctx.fillText('Press W to jump, Space to shoot, D to swing',50,200);
+        ctx.restore();
     }
+    
     if(gameOver){
+        ctx.save();
+        // Wait 20 frames before starting to fade in over the next 40 frames
+        ctx.globalAlpha = Math.max(0, Math.min(1, (deathTimer - 20) / 40)); 
         ctx.fillText('Game Over! Press W to jump, Space to shoot, D to swing',50,200);
+        ctx.restore();
     }
 }
 
@@ -589,6 +600,7 @@ function pollGamepad() {
 function update(){
     pollGamepad();
     if(gameOver){
+        deathTimer++;
         shatterParticles.forEach(p => {
             p.x += p.vx;
             p.y += p.vy;
@@ -737,6 +749,7 @@ function update(){
     if(shootCooldown>0)shootCooldown--;
     const crashGame = (shakeAmt) => { 
         gameOver=true; AudioSys.crash(); AudioSys.stopMusic(); if(score>highScore)highScore=score; shake=shakeAmt; 
+        deathTimer = 0;
         for(let i=0; i<30; i++) {
             shatterParticles.push({
                 x: player.x + player.w/2,
@@ -765,7 +778,7 @@ function jump(){ if(gameOver) return; if(!player.jumping || player.coyoteTime > 
 function executeJump() { player.vy=jumpPower; player.jumping=true; player.coyoteTime = 0; player.scaleX = 0.6; player.scaleY = 1.4; AudioSys.jump(); initAudio(); }
 function shoot() { if(!gameOver&&shootCooldown===0&&started){ bullets.push({x:player.x+player.w+4,y:player.y+player.h/2-14}); casings.push({x: player.x + player.w/2, y: player.y - 8, vx: -2 - Math.random()*3, vy: -3 - Math.random()*3, rot: Math.random()*Math.PI, life: 60}); spawnMuzzleFlash(player.x+player.w, player.y+player.h/2-14); AudioSys.shoot(); initAudio(); shootCooldown=6;player.recoil=3; } }
 function swing() { if(!player.swinging&&!gameOver&&started){ player.swinging=true;player.swingFrame=0; AudioSys.sword(); initAudio(); } }
-function resetGame(){ gameOver=false;obstacles=[];clouds=[];enemies=[];bullets=[];sparks=[];muzzleFlashes=[]; enemyBullets=[];platforms=[];electricWalls=[]; trails=[]; grassParticles=[]; casings=[]; floatingTexts=[]; markers=[]; shatterParticles=[]; player.y=300;player.vy=0;score=0;speed=5;frameCount=0;player.recoil=0;started=false; player.jumping=false; player.coyoteTime=0; player.jumpBuffer=0; player.scaleX=1; player.scaleY=1; readyToStart = true; currentTransition = 0; targetTransition = 0; transitionTimer = 0; nextMarkerScore=1000; obstacleTimer = 0; enemyTimer = 40; lastObstacleCount = 1; lastGamepadStickActive = false; groundScroll = 0; lightScroll = 0; AudioSys.stopMusic(); }
+function resetGame(){ gameOver=false;obstacles=[];clouds=[];enemies=[];bullets=[];sparks=[];muzzleFlashes=[]; enemyBullets=[];platforms=[];electricWalls=[]; trails=[]; grassParticles=[]; casings=[]; floatingTexts=[]; markers=[]; shatterParticles=[]; deathTimer=0; player.y=300;player.vy=0;score=0;speed=5;frameCount=0;player.recoil=0;started=false; player.jumping=false; player.coyoteTime=0; player.jumpBuffer=0; player.scaleX=1; player.scaleY=1; readyToStart = true; currentTransition = 0; targetTransition = 0; transitionTimer = 0; nextMarkerScore=1000; obstacleTimer = 0; enemyTimer = 40; lastObstacleCount = 1; lastGamepadStickActive = false; groundScroll = 0; lightScroll = 0; AudioSys.stopMusic(); }
 
 document.addEventListener('keydown',e=>{
     keysDown[e.code]=true;
