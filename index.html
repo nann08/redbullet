@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width,initial-scale=1" />
 <title>redbullet</title>
 <style>
-  body{margin:0;background:#000;display:flex;align-items:center;justify-content:center;height:100vh}
-  canvas{image-rendering:pixelated;border:2px solid #333}
+  body{margin:0;background:#000;display:flex;align-items:center;justify-content:center;height:100vh;overflow:hidden;}
+  canvas{image-rendering:pixelated;border:2px solid #333;}
 </style>
 </head>
 <body>
@@ -136,7 +136,11 @@ let keysDown={}, shootCooldown=0,started=false;
 let readyToStart = true; 
 let currentTransition = 0, targetTransition = 0, transitionTimer = 0;
 let obstacleTimer = 100, enemyTimer = 140, lastObstacleCount = 1; 
+
+// --- HUD & LOGO STATE ---
 let titleVisible = true, titleScrollX = 0;
+let firstLoad = true; 
+let rebootGlitchTimer = 0;
 let deathTimer = 0;
 
 // --- INPUT TRACKING ---
@@ -184,13 +188,13 @@ let lightScroll = 0;
 
 function drawGround(){
     let t = getColorTransition();
-    let groundBaseCol = Math.floor(240 - t * 200); 
 
     if (started && !gameOver) {
         groundScroll = (groundScroll - speed) % 320;
         lightScroll -= speed;
     }
     
+    // Draw Hover Floating Light
     let hoverGradient = ctx.createLinearGradient(0, 356, 0, 380);
     hoverGradient.addColorStop(0, 'rgba(100, 200, 255, 0.4)');
     hoverGradient.addColorStop(1, 'rgba(100, 200, 255, 0)');
@@ -204,9 +208,11 @@ function drawGround(){
         ctx.fillRect(px, 356 + depthOffset + Math.sin(frameCount * 0.05 + i) * 5, 24, 2);
     }
 
-    ctx.fillStyle=`rgb(${groundBaseCol},${groundBaseCol},${groundBaseCol})`;
+    // MAIN SLAB: Matched to the premium silver-white of the title
+    ctx.fillStyle='#e0e0e0';
     ctx.fillRect(0,332,800,24); 
 
+    // Neon trim
     ctx.fillStyle = '#00f2ff';
     ctx.fillRect(0, 332, 800, 3);
     
@@ -247,15 +253,14 @@ function drawPlayerBody(p, isTrail, alpha, colorOverride) {
     if (p.scaleX && p.scaleY) ctx.scale(p.scaleX, p.scaleY);
     ctx.translate(-(p.x + p.w/2), -(p.y + 24)); 
     if (isTrail) {
-        ctx.fillStyle = colorOverride || `rgba(100, 200, 255, ${alpha})`;
+        ctx.fillStyle = colorOverride || `rgba(224, 224, 224, ${alpha})`;
         ctx.fillRect(p.x+recoilOffset, p.y-16, p.w, 32);
         let legSwing=Math.sin(p.frame*0.3)*2;
         ctx.fillRect(p.x-2+recoilOffset, p.y+16+legSwing, 4, 8);
         ctx.fillRect(p.x+14+recoilOffset, p.y+16-legSwing, 4, 8);
     } else {
-        let t = getColorTransition();
-        let bodyGray = Math.floor(255 - t * 200); 
-        let bodyColor = colorOverride || `rgb(${bodyGray},${bodyGray},${bodyGray})`;
+        // Body Color matched to title silver-white
+        let bodyColor = colorOverride || '#e0e0e0';
         ctx.fillStyle=bodyColor; ctx.fillRect(p.x+recoilOffset,p.y-16,p.w,32);
         ctx.fillStyle='black'; ctx.fillRect(p.x+2+recoilOffset,p.y-12,12,4);
         ctx.fillStyle=bodyColor;
@@ -342,71 +347,82 @@ function drawMuzzleFlashes(){muzzleFlashes.forEach(f=>{ctx.fillStyle='white';ctx
 function drawDust(){dusts.forEach(d=>{ctx.fillStyle=`rgba(120,80,40,${d.life/12})`;ctx.fillRect(d.x,d.y,3,2);});}
 function drawFloatingTexts() { ctx.textAlign = 'center'; floatingTexts.forEach(ft => { ctx.fillStyle = `rgba(255, 255, 0, ${ft.life/30})`; ctx.font = 'bold 12px monospace'; ctx.fillText(ft.text, ft.x, ft.y); }); ctx.textAlign = 'left'; }
 
+function drawSystemRebootPage() {
+    ctx.save();
+    rebootGlitchTimer++;
+    let glitchX = (Math.random()-0.5)*4;
+    ctx.translate(glitchX, 0);
+    ctx.fillStyle = '#00f2ff';
+    ctx.font = 'bold 24px monospace';
+    ctx.fillText('>> SYSTEM REBOOT READY', 50 + glitchX, 120);
+    ctx.font = '14px monospace';
+    ctx.fillStyle = 'white';
+    ctx.fillText('VERIFYING CORE... [OK]', 50, 145);
+    ctx.fillText('FUEL LEVELS... [STABLE]', 50, 165);
+    ctx.globalAlpha = Math.abs(Math.sin(rebootGlitchTimer * 0.1));
+    ctx.font = 'bold 16px monospace';
+    ctx.fillText('PRESS W TO REBOOT', 50, 200);
+    ctx.restore();
+}
+
 function drawText(){
     ctx.fillStyle='white';
     ctx.font='16px monospace';
     ctx.fillText('Score:'+score, 650, 20);
     ctx.fillText('High:'+highScore, 650, 40);
     
-    if (titleVisible) {
+    // Logo logic
+    if (titleVisible && firstLoad) {
         ctx.save();
-        // Snappy fade (15 frames) for sharp appearance
         ctx.globalAlpha = (!started) ? Math.max(0, Math.min(1, frameCount / 15)) : 1;
         
         let titleScale = 1;
         let floatY = 0;
-
-        // ANIMATION SEQUENCE
-        const riseTime = 20;   // Quick swell
-        const holdPeak = 20;   // Shortened hold
-        const fallTime = 20;   // Snappy return
+        const riseTime = 20, holdPeak = 20, fallTime = 20; 
         const endAnim = riseTime + holdPeak + fallTime; 
 
-        if (frameCount < riseTime) {
-            titleScale = 1 + Math.sin((frameCount / riseTime) * (Math.PI / 2)) * 0.1;
-        } else if (frameCount < riseTime + holdPeak) {
-            titleScale = 1.1;
-        } else if (frameCount < endAnim) {
+        if (frameCount < riseTime) titleScale = 1 + Math.sin((frameCount / riseTime) * (Math.PI / 2)) * 0.1;
+        else if (frameCount < riseTime + holdPeak) titleScale = 1.1;
+        else if (frameCount < endAnim) {
             let t = (frameCount - (riseTime + holdPeak)) / fallTime;
             titleScale = 1 + Math.cos(t * (Math.PI / 2)) * 0.1;
         }
-
-        if (frameCount >= endAnim) {
-            floatY = Math.sin((frameCount - endAnim) * 0.05) * 8;
-        }
+        if (frameCount >= endAnim) floatY = Math.sin((frameCount - endAnim) * 0.05) * 8;
         
-        // WORLD SPACE POSITIONING: Title moves left when the player starts running
         ctx.translate(Math.round(400 - titleScrollX), Math.round(125 + floatY));
         ctx.scale(titleScale, titleScale); 
-        
         ctx.textAlign = 'center';
+        
+        // Match floor's tight styling and color palette
+        ctx.letterSpacing = "-5px"; 
         ctx.font = 'bold 60px monospace';
         
-        // RENDER 3D EXTRUSION: Dark gray depth layers
         const drawObject = (t, y) => {
-            ctx.fillStyle = '#222'; // Depth color
-            // Draw 3 layers of physical depth
-            for(let i=1; i<=3; i++) {
+            // MATCHING FLOOR UNDERGLOW EXACTLY:
+            ctx.shadowColor = 'rgba(100, 200, 255, 0.6)'; 
+            ctx.shadowBlur = 8; 
+            ctx.fillStyle = 'rgb(80, 160, 210)'; 
+            
+            for(let i=1; i<=4; i++) {
                 ctx.fillText(t, 0, y + i);
             }
             
-            // RENDER SOLID WHITE FACE (with faux-bold thick write)
-            ctx.fillStyle = '#ffffff'; 
+            ctx.shadowBlur = 0;
+            ctx.fillStyle = '#e0e0e0'; // Premium Silver-White
             ctx.fillText(t, -1, y);
             ctx.fillText(t, 1, y);
             ctx.fillText(t, 0, y - 1);
             ctx.fillText(t, 0, y + 1);
             ctx.fillText(t, 0, y);
         };
-
-        // Spacing reduced between lines (-25 and 25 instead of -30/35)
-        drawObject('RED', -25);
-        drawObject('BULLETS', 25);
         
+        drawObject('RED', -22);
+        drawObject('BULLETS', 22);
         ctx.restore();
+        ctx.letterSpacing = "0px";
     }
 
-    if(!started&&!gameOver){
+    if(!started && !gameOver){
         ctx.save();
         ctx.globalAlpha = Math.max(0, Math.min(1, frameCount / 40));
         ctx.fillStyle = 'white';
@@ -417,10 +433,7 @@ function drawText(){
     }
     
     if(gameOver){
-        ctx.save();
-        ctx.globalAlpha = Math.max(0, Math.min(1, (deathTimer - 20) / 40)); 
-        ctx.fillText('Game Over! Press W to jump, Space to shoot, D to swing', 50, 200);
-        ctx.restore();
+        drawSystemRebootPage();
     }
 }
 
@@ -490,12 +503,9 @@ function update(){
     }
     if(!started)return;
     
-    // Smooth title scroll-away as run progresses
     if(titleVisible) { 
-        titleScrollX += speed; // Moves with ground
-        if(400 - titleScrollX < -500) { 
-            titleVisible = false; 
-        } 
+        titleScrollX += speed; 
+        if(400 - titleScrollX < -500) { titleVisible = false; } 
     }
 
     player.scaleX += (1 - player.scaleX) * 0.2; player.scaleY += (1 - player.scaleY) * 0.2;
@@ -556,7 +566,7 @@ function update(){
     }
 
     if(player.recoil>0)player.recoil--; sparks.forEach((s,i)=>{s.x+=s.vx;s.y+=s.vy;s.vx*=0.95;s.vy*=0.95;s.life--;if(s.life<=0)sparks.splice(i,1);}); muzzleFlashes.forEach((f,i)=>{f.life--;if(f.life<=0)muzzleFlashes.splice(i,1);}); dusts.forEach((d,i)=>{d.x+=d.vx;d.y+=d.vy;d.vy+=0.2;d.life--;if(d.life<=0)dusts.splice(i,1);}); if(shootCooldown>0)shootCooldown--;
-    const crashGame = (shakeAmt) => { gameOver=true; AudioSys.crash(); AudioSys.stopMusic(); if(score>highScore)highScore=score; shake=shakeAmt; deathTimer = 0; for(let i=0; i<30; i++) { shatterParticles.push({ x: player.x + player.w/2, y: player.y + 16, vx: (Math.random() - 0.2) * -6, vy: (Math.random() - 1) * 5, vrot: (Math.random() - 0.5) * 0.2, rot: Math.random() * Math.PI * 2, size: 2 + Math.random() * 4, color: '#ffffff' }); } };
+    const crashGame = (shakeAmt) => { gameOver=true; AudioSys.crash(); AudioSys.stopMusic(); if(score>highScore)highScore=score; shake=shakeAmt; deathTimer = 0; for(let i=0; i<30; i++) { shatterParticles.push({ x: player.x + player.w/2, y: player.y + 16, vx: (Math.random() - 0.2) * -6, vy: (Math.random() - 1) * 5, vrot: (Math.random() - 0.5) * 0.2, rot: Math.random() * Math.PI * 2, size: 2 + Math.random() * 4, color: '#e0e0e0' }); } };
     obstacles.forEach(o=>{ let hitX = o.x + o.w * 0.25; let hitW = o.w * 0.5; let hitY = o.y - o.h * 0.7; if(player.x < hitX + hitW && player.x + player.w > hitX && player.y + player.h > hitY) crashGame(12); else if (!o.closeCallTriggered && player.x + player.w > hitX - 15 && player.x < hitX + hitW + 15) { if (player.y + player.h <= hitY && player.y + player.h > hitY - 20) { o.closeCallTriggered = true; floatingTexts.push({x: hitX + hitW/2, y: hitY - 10, text: "*close call*", life: 40}); } } });
     electricWalls.forEach(w=>{ const beamX = w.x + w.w/2; if(player.x < beamX + 3 && player.x + player.w > beamX - 3 && player.y + player.h > w.y1 && player.y < w.y2) crashGame(16); else if (!w.closeCallTriggered && player.x + player.w > beamX - 15 && player.x < beamX + 15) { if ((player.y + player.h <= w.y1 && player.y + player.h > w.y1 - 15) || (player.y >= w.y2 && player.y < w.y2 + 15)) { w.closeCallTriggered = true; floatingTexts.push({x: beamX, y: (w.laserType === 'CEILING' ? w.y2 + 10 : w.y1 - 10), text: "*close call*", life: 40}); } } });
     enemyBullets.forEach(eb=>{ if(!eb.deflected && !eb.remove && player.x<eb.x+eb.r&&player.x+player.w>eb.x-eb.r&&player.y+player.h>eb.y-eb.r&&player.y<eb.y+eb.r) crashGame(12); });
@@ -568,7 +578,7 @@ function jump(){ if(gameOver) return; if(!player.jumping || player.coyoteTime > 
 function executeJump() { player.vy=jumpPower; player.jumping=true; player.coyoteTime = 0; player.scaleX = 0.6; player.scaleY = 1.4; AudioSys.jump(); initAudio(); }
 function shoot() { if(!gameOver&&shootCooldown===0&&started){ bullets.push({x:player.x+player.w+4,y:player.y+player.h/2-14}); casings.push({x: player.x + player.w/2, y: player.y - 8, vx: -2 - Math.random()*3, vy: -3 - Math.random()*3, rot: Math.random()*Math.PI, life: 60}); spawnMuzzleFlash(player.x+player.w, player.y+player.h/2-14); AudioSys.shoot(); initAudio(); shootCooldown=6;player.recoil=3; } }
 function swing() { if(!player.swinging&&!gameOver&&started){ player.swinging=true;player.swingFrame=0; AudioSys.sword(); initAudio(); } }
-function resetGame(){ gameOver=false;obstacles=[];clouds=[];enemies=[];bullets=[];sparks=[];muzzleFlashes=[]; enemyBullets=[];platforms=[];electricWalls=[]; trails=[]; grassParticles=[]; casings=[]; floatingTexts=[]; markers=[]; shatterParticles=[]; deathTimer=0; player.y=300;player.vy=0;score=0;speed=5;frameCount=0;player.recoil=0;started=false; player.jumping=false; player.coyoteTime=0; player.jumpBuffer=0; player.scaleX=1; player.scaleY=1; readyToStart = true; currentTransition = 0; targetTransition = 0; transitionTimer = 0; nextMarkerScore=1000; obstacleTimer = 100; enemyTimer = 140; lastObstacleCount = 1; lastGamepadStickActive = false; groundScroll = 0; lightScroll = 0; titleScrollX = 0; titleVisible = true; AudioSys.stopMusic(); }
+function resetGame(){ gameOver=false;obstacles=[];clouds=[];enemies=[];bullets=[];sparks=[];muzzleFlashes=[]; enemyBullets=[];platforms=[];electricWalls=[]; trails=[]; grassParticles=[]; casings=[]; floatingTexts=[]; markers=[]; shatterParticles=[]; deathTimer=0; player.y=300;player.vy=0;score=0;speed=5;frameCount=0;player.recoil=0;started=false; player.jumping=false; player.coyoteTime=0; player.jumpBuffer=0; player.scaleX=1; player.scaleY=1; readyToStart = true; currentTransition = 0; targetTransition = 0; transitionTimer = 0; nextMarkerScore=1000; obstacleTimer = 100; enemyTimer = 140; lastObstacleCount = 1; lastGamepadStickActive = false; groundScroll = 0; lightScroll = 0; titleScrollX = 0; titleVisible = true; firstLoad = false; rebootGlitchTimer = 0; AudioSys.stopMusic(); }
 
 document.addEventListener('keydown',e=>{
     keysDown[e.code]=true;
@@ -579,7 +589,8 @@ document.addEventListener('keydown',e=>{
 document.addEventListener('keyup',e=>{ keysDown[e.code]=false; if(e.code==='KeyW' && !started && !gameOver) readyToStart = true; });
 
 function loop(){
-    frameCount++; ctx.save(); applyShake(); drawStars(); drawClouds(); drawDistanceMarkers(); drawGround(); drawPlatforms(); drawElectricWalls(); drawObstacles(); drawEnemies(); drawEnemyBullets(); drawBullets(); drawPlayer(); drawShatter(); drawCasings(); drawGrass(); drawSparks(); drawMuzzleFlashes(); drawDust(); drawFloatingTexts(); drawText(); ctx.restore();
+    frameCount++; ctx.save(); applyShake(); drawStars(); drawClouds(); drawDistanceMarkers(); drawGround(); drawPlatforms(); drawElectricWalls(); drawObstacles(); drawEnemies(); drawEnemyBullets(); drawBullets(); drawPlayer(); drawShatter(); drawCasings(); drawGrass(); drawSparks(); drawMuzzleFlashes(); drawDust(); drawFloatingTexts(); drawText(); 
+    ctx.restore();
     if(!started&&!gameOver)player.frame++; update(); requestAnimationFrame(loop);
 }
 loop();
