@@ -186,6 +186,7 @@ function drawStars(){
 
 let groundScroll = 0;
 let lightScroll = 0;
+let hoverGradient = null;
 
 function drawGround(){
     let t = getColorTransition();
@@ -195,9 +196,11 @@ function drawGround(){
         lightScroll -= speed;
     }
     
-    let hoverGradient = ctx.createLinearGradient(0, 356, 0, 380);
-    hoverGradient.addColorStop(0, 'rgba(100, 200, 255, 0.4)');
-    hoverGradient.addColorStop(1, 'rgba(100, 200, 255, 0)');
+    if (!hoverGradient) {
+        hoverGradient = ctx.createLinearGradient(0, 356, 0, 380);
+        hoverGradient.addColorStop(0, 'rgba(100, 200, 255, 0.4)');
+        hoverGradient.addColorStop(1, 'rgba(100, 200, 255, 0)');
+    }
     ctx.fillStyle = hoverGradient;
     ctx.fillRect(0, 356, 800, 24);
 
@@ -601,12 +604,12 @@ function update(){
 
     player.scaleX += (1 - player.scaleX) * 0.2; player.scaleY += (1 - player.scaleY) * 0.2;
     if (frameCount % 3 === 0 && (player.jumping || speed > 6)) trails.push({x: player.x, y: player.y, frame: player.frame, life: 10, maxLife: 10, scaleX: player.scaleX, scaleY: player.scaleY, recoil: player.recoil});
-    trails.forEach((t,i)=>{ t.life--; if(t.life<=0) trails.splice(i,1); });
+    trails = trails.filter(t => { t.life--; return t.life > 0; });
     if (!player.jumping && frameCount % 8 === 0) { const color = Math.random() > 0.5 ? '#999' : '#ccc'; grassParticles.push({x: player.x + 4 + Math.random()*8, y: player.y + 24, vx: -speed * 0.4 - Math.random() * 1, vy: -1 - Math.random() * 2, w: 1 + Math.random() * 2, h: 2 + Math.random() * 4, color: color, life: 15, maxLife: 15}); }
-    grassParticles.forEach((g,i)=>{ g.x += g.vx; g.y += g.vy; g.vy += 0.15; g.vx *= 0.98; g.life--; if(g.life<=0) grassParticles.splice(i,1); });
-    casings.forEach((c,i)=>{ c.x += c.vx; c.y += c.vy; c.vy += 0.5; c.rot += 0.2; if(c.y > 330) { c.y = 330; c.vy *= -0.5; c.vx *= 0.5; } c.life--; if(c.life<=0) casings.splice(i,1); });
-    floatingTexts.forEach((ft,i)=>{ ft.y -= 0.5; ft.life--; if(ft.life<=0) floatingTexts.splice(i,1); });
-    markers.forEach((m,i)=>{ m.x -= speed; if(m.x < -50) markers.splice(i,1); });
+    grassParticles = grassParticles.filter(g => { g.x += g.vx; g.y += g.vy; g.vy += 0.15; g.vx *= 0.98; g.life--; return g.life > 0; });
+    casings = casings.filter(c => { c.x += c.vx; c.y += c.vy; c.vy += 0.5; c.rot += 0.2; if(c.y > 330) { c.y = 330; c.vy *= -0.5; c.vx *= 0.5; } c.life--; return c.life > 0; });
+    floatingTexts = floatingTexts.filter(ft => { ft.y -= 0.5; ft.life--; return ft.life > 0; });
+    markers = markers.filter(m => { m.x -= speed; return m.x >= -50; });
     if(score >= nextMarkerScore) { markers.push({x: 850, y: 332, text: nextMarkerScore + "m"}); nextMarkerScore += 1000; }
     if (player.coyoteTime > 0) player.coyoteTime--; if (player.jumpBuffer > 0) player.jumpBuffer--;
     if(score >= 2000) { if(transitionTimer <= 0) { if(targetTransition === 1) { targetTransition = 0; transitionTimer = 300 + Math.random() * 600; } else { targetTransition = 1; transitionTimer = 120 + Math.random() * 180; } } else { transitionTimer--; } currentTransition += (targetTransition - currentTransition) * 0.008; }
@@ -656,7 +659,11 @@ function update(){
         player.swingFrame++;if(player.swingFrame>5){player.swinging=false;player.swingFrame=0;}
     }
 
-    if(player.recoil>0)player.recoil--; sparks.forEach((s,i)=>{s.x+=s.vx;s.y+=s.vy;s.vx*=0.95;s.vy*=0.95;s.life--;if(s.life<=0)sparks.splice(i,1);}); muzzleFlashes.forEach((f,i)=>{f.life--;if(f.life<=0)muzzleFlashes.splice(i,1);}); dusts.forEach((d,i)=>{d.x+=d.vx;d.y+=d.vy;d.vy+=0.2;d.life--;if(d.life<=0)dusts.splice(i,1);}); if(shootCooldown>0)shootCooldown--;
+    if(player.recoil>0)player.recoil--; 
+    sparks = sparks.filter(s => { s.x+=s.vx; s.y+=s.vy; s.vx*=0.95; s.vy*=0.95; s.life--; return s.life > 0; }); 
+    muzzleFlashes = muzzleFlashes.filter(f => { f.life--; return f.life > 0; }); 
+    dusts = dusts.filter(d => { d.x+=d.vx; d.y+=d.vy; d.vy+=0.2; d.life--; return d.life > 0; }); 
+    if(shootCooldown>0)shootCooldown--;
     
     const crashGame = (shakeAmt) => { 
         gameOver=true; AudioSys.crash(); AudioSys.stopMusic(); if(score>highScore)highScore=score; shake=shakeAmt; deathTimer = 0; 
