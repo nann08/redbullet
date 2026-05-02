@@ -178,9 +178,9 @@ function drawStars(){
         let currentHue = p.hue + t * (330 - p.hue); 
         let currentL = 45 + t * 30; 
         ctx.fillStyle=`hsl(${currentHue} 70% ${currentL}%)`;
-        ctx.beginPath(); ctx.ellipse(Math.round(p.x), Math.round(p.y), p.size, p.size*0.6, 0, 0, Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.ellipse(Math.round(p.x), Math.round(p.y), Math.round(p.size), Math.round(p.size*0.6), 0, 0, Math.PI*2); ctx.fill();
         ctx.fillStyle=`rgba(${starC},${starC},${starC},0.06)`;
-        ctx.beginPath(); ctx.ellipse(Math.round(p.x-6), Math.round(p.y-6), p.size*0.5, p.size*0.3, 0, 0, Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.ellipse(Math.round(p.x-6), Math.round(p.y-6), Math.round(p.size*0.5), Math.round(p.size*0.3), 0, 0, Math.PI*2); ctx.fill();
     });
 }
 
@@ -244,7 +244,11 @@ function drawClouds(){
     let g = Math.floor(128 + t * (140 - 128));
     let b = Math.floor(128 + t * (160 - 128));
     ctx.fillStyle=`rgba(${r},${g},${b},0.5)`;
-    clouds.forEach(c=>ctx.fillRect(Math.round(c.x), Math.round(c.y), Math.round(c.size), Math.round(c.size/2)));
+    clouds.forEach(c=>{
+        ctx.beginPath();
+        ctx.ellipse(Math.round(c.x + c.size/2), Math.round(c.y + c.size/4), Math.round(c.size/2), Math.round(c.size/4), 0, 0, Math.PI*2);
+        ctx.fill();
+    });
 }
 
 function drawPlayerBody(p, isTrail, alpha, colorOverride) {
